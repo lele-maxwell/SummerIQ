@@ -58,7 +58,7 @@ export const TreeNode: React.FC<TreeNodeProps> = ({ node, level, onSelect, selec
       <div 
         className={cn(
           "flex items-center py-1 px-2 rounded-md cursor-pointer transition-colors",
-          isSelected ? "bg-secondary text-primary" : "hover:bg-secondary/50"
+          isSelected ? "bg-green-800 text-green-100" : "hover:bg-green-900/30"
         )}
         style={{ paddingLeft: `${level * 12 + 8}px` }}
         onClick={handleSelect}
@@ -74,7 +74,7 @@ export const TreeNode: React.FC<TreeNodeProps> = ({ node, level, onSelect, selec
         
         {node.type === "file" && (
           <span 
-            className="ml-auto cursor-pointer text-muted-foreground hover:text-primary"
+            className="ml-auto cursor-pointer text-green-300 hover:text-green-100"
             onClick={handleDownload}
             title="Download file"
           >

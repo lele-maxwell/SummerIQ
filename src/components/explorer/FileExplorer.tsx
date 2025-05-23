@@ -43,12 +43,12 @@ export function FileExplorer({ fileStructure = demoFileStructure, onFileSelect }
 
   return (
     <div className="border rounded-md h-full">
-      <div className="bg-muted p-2 border-b text-sm font-medium flex justify-between items-center">
+      <div className="bg-green-900 text-green-50 p-2 border-b text-sm font-medium flex justify-between items-center">
         <span>Project Files</span>
         <Button 
           variant="ghost" 
           size="sm" 
-          className="h-8 px-2" 
+          className="h-8 px-2 text-green-50 hover:text-white hover:bg-green-800" 
           onClick={handleDownloadAll}
           title="Download all files"
         >
