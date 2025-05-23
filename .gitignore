@@ -22,3 +22,28 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+.env
+/target
+
+# Rust specific
+/target/
+**/*.rs.bk
+Cargo.lock
+
+# IDE specific
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Environment variables
+.env.local
+.env.*.local
+
+# OS specific
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp
