@@ -4,8 +4,16 @@ import { ChevronDownIcon, ChevronRightIcon, FileIcon, FileTextIcon, FolderIcon, 
 import { cn } from "@/lib/utils";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
-// Mock file structure for demo purposes
-const demoFileStructure = {
+// Define FileNode type before using it
+type FileNode = {
+  name: string;
+  type: "file" | "folder";
+  extension?: string;
+  children?: FileNode[];
+};
+
+// Mock file structure for demo purposes - with proper type annotations
+const demoFileStructure: FileNode = {
   name: "project-name",
   type: "folder",
   children: [
@@ -74,13 +82,6 @@ const demoFileStructure = {
       ]
     }
   ]
-};
-
-type FileNode = {
-  name: string;
-  type: "file" | "folder";
-  extension?: string;
-  children?: FileNode[];
 };
 
 interface TreeNodeProps {
