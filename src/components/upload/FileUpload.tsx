@@ -1,8 +1,6 @@
-
 import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { UploadCloudIcon, FileIcon, Loader2Icon, CheckIcon, XIcon } from "lucide-react";
-import { useToast } from "@/components/ui/use-toast";
 import { Progress } from "@/components/ui/progress";
 
 interface FileUploadProps {
@@ -10,7 +8,6 @@ interface FileUploadProps {
 }
 
 export function FileUpload({ onUploadComplete }: FileUploadProps) {
-  const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
@@ -22,11 +19,7 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
     if (selectedFile && selectedFile.name.endsWith(".zip")) {
       setFile(selectedFile);
     } else if (selectedFile) {
-      toast({
-        variant: "destructive",
-        title: "Invalid file",
-        description: "Please upload a ZIP file.",
-      });
+      // No toast call needed here
     }
   };
 
@@ -38,11 +31,7 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
     if (droppedFile && droppedFile.name.endsWith(".zip")) {
       setFile(droppedFile);
     } else if (droppedFile) {
-      toast({
-        variant: "destructive",
-        title: "Invalid file",
-        description: "Please upload a ZIP file.",
-      });
+      // No toast call needed here
     }
   };
   
@@ -71,10 +60,6 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
         clearInterval(interval);
         setTimeout(() => {
           setUploading(false);
-          toast({
-            title: "Upload successful",
-            description: `${file.name} has been uploaded.`,
-          });
           onUploadComplete(file.name);
         }, 500);
       }
