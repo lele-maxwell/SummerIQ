@@ -1,13 +1,10 @@
-
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useToast } from "@/components/ui/use-toast";
 
 export function AuthForm({ onSuccess }: { onSuccess: () => void }) {
-  const { toast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
 
   const [loginData, setLoginData] = useState({
@@ -39,17 +36,7 @@ export function AuthForm({ onSuccess }: { onSuccess: () => void }) {
       setIsLoading(false);
       // For demo purposes, just check if fields are filled
       if (loginData.email && loginData.password) {
-        toast({
-          title: "Login successful",
-          description: "Welcome back to ZipMind.",
-        });
         onSuccess();
-      } else {
-        toast({
-          variant: "destructive",
-          title: "Login failed",
-          description: "Please fill all required fields.",
-        });
       }
     }, 1000);
   };
@@ -63,27 +50,13 @@ export function AuthForm({ onSuccess }: { onSuccess: () => void }) {
       setIsLoading(false);
       
       if (!signupData.name || !signupData.email || !signupData.password) {
-        toast({
-          variant: "destructive",
-          title: "Signup failed",
-          description: "Please fill all required fields.",
-        });
         return;
       }
       
       if (signupData.password !== signupData.confirmPassword) {
-        toast({
-          variant: "destructive",
-          title: "Passwords don't match",
-          description: "Please make sure both passwords match.",
-        });
         return;
       }
       
-      toast({
-        title: "Account created",
-        description: "Welcome to ZipMind! Your account has been created successfully.",
-      });
       onSuccess();
     }, 1500);
   };
