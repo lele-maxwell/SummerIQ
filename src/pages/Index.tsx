@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
@@ -11,11 +10,17 @@ import { ChatInterface } from "@/components/chat/ChatInterface";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { BrainCogIcon, UploadCloudIcon, LayoutPanelLeftIcon, MessageSquareTextIcon } from "lucide-react";
 
+// Define a minimal FileNode type for selectedFile
+interface FileNode {
+  name: string;
+  // add other properties as needed
+}
+
 const Index = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [hasUploadedFile, setHasUploadedFile] = useState(false);
   const [uploadedFileName, setUploadedFileName] = useState("");
-  const [selectedFile, setSelectedFile] = useState<any>(null);
+  const [selectedFile, setSelectedFile] = useState<FileNode | null>(null);
   const [selectedFilePath, setSelectedFilePath] = useState("");
   
   const handleLogin = () => {
@@ -35,7 +40,7 @@ const Index = () => {
     setUploadedFileName(fileName);
   };
   
-  const handleFileSelect = (file: any, path: string) => {
+  const handleFileSelect = (file: FileNode, path: string) => {
     setSelectedFile(file);
     setSelectedFilePath(path);
   };
