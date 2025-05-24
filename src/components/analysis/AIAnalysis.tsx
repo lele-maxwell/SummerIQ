@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -11,9 +10,35 @@ interface AIAnalysisProps {
   fileName?: string;
 }
 
+interface AnalysisComponent {
+  name: string;
+  signature?: string;
+  description: string;
+}
+
+interface AnalysisDependency {
+  type: string;
+  name: string;
+  description: string;
+}
+
+interface AnalysisRecommendation {
+  title: string;
+  description: string;
+  priority: 'high' | 'medium' | 'low';
+}
+
+interface AnalysisData {
+  summary: string;
+  tags: string[];
+  components: AnalysisComponent[];
+  dependencies: AnalysisDependency[];
+  recommendations: AnalysisRecommendation[];
+}
+
 export function AIAnalysis({ filePath, fileName }: AIAnalysisProps) {
   const [loading, setLoading] = useState(false);
-  const [analysisData, setAnalysisData] = useState<any>(null);
+  const [analysisData, setAnalysisData] = useState<AnalysisData | null>(null);
 
   useEffect(() => {
     if (filePath && fileName) {
@@ -116,7 +141,7 @@ export function AIAnalysis({ filePath, fileName }: AIAnalysisProps) {
         
         <TabsContent value="components">
           <div className="space-y-4">
-            {analysisData.components.map((component: any, index: number) => (
+            {analysisData.components.map((component: AnalysisComponent, index: number) => (
               <Card key={index}>
                 <CardHeader className="py-3">
                   <CardTitle className="text-base">{component.name}</CardTitle>
@@ -136,7 +161,7 @@ export function AIAnalysis({ filePath, fileName }: AIAnalysisProps) {
         
         <TabsContent value="dependencies">
           <div className="space-y-4">
-            {analysisData.dependencies.map((dep: any, index: number) => (
+            {analysisData.dependencies.map((dep: AnalysisDependency, index: number) => (
               <div key={index} className="flex items-start">
                 <Badge className="mt-0.5 mr-2">{dep.type}</Badge>
                 <div>
@@ -150,7 +175,7 @@ export function AIAnalysis({ filePath, fileName }: AIAnalysisProps) {
         
         <TabsContent value="recommendations">
           <div className="space-y-4">
-            {analysisData.recommendations.map((rec: any, index: number) => (
+            {analysisData.recommendations.map((rec: AnalysisRecommendation, index: number) => (
               <Card key={index}>
                 <CardHeader className="py-3">
                   <CardTitle className="text-base flex items-center gap-2">
@@ -173,7 +198,7 @@ export function AIAnalysis({ filePath, fileName }: AIAnalysisProps) {
 }
 
 // Mock Analysis Data
-const rustFileAnalysis = {
+const rustFileAnalysis: AnalysisData = {
   summary: "This file defines the authentication routes and handlers for the application. It implements user registration, login, and session management using JWT tokens. Password hashing is performed with bcrypt, and input validation uses the validator crate.",
   tags: ["Authentication", "JWT", "Rust", "API Routes", "Security"],
   components: [
@@ -224,7 +249,7 @@ const rustFileAnalysis = {
   ]
 };
 
-const markdownFileAnalysis = {
+const markdownFileAnalysis: AnalysisData = {
   summary: "This markdown file serves as the project's README documentation. It provides an overview of the project, installation instructions, usage examples, and contribution guidelines. The document is well-structured with clear sections.",
   tags: ["Documentation", "Markdown", "README", "Project Info"],
   components: [
@@ -267,7 +292,7 @@ const markdownFileAnalysis = {
   ]
 };
 
-const tomlFileAnalysis = {
+const tomlFileAnalysis: AnalysisData = {
   summary: "This is the Cargo.toml configuration file for a Rust project. It defines the package metadata, dependencies, build settings, and other configuration options for the project. The project appears to be a web service using the axum framework with database connectivity.",
   tags: ["Configuration", "Cargo", "Dependencies", "Rust", "TOML"],
   components: [
@@ -315,7 +340,7 @@ const tomlFileAnalysis = {
   ]
 };
 
-const defaultFileAnalysis = {
+const defaultFileAnalysis: AnalysisData = {
   summary: "This file contains generic content that couldn't be specifically analyzed. It appears to be a supporting file in the project structure.",
   tags: ["Unknown", "Supporting File"],
   components: [
