@@ -32,19 +32,11 @@ export const API: API = {
 
 export interface UploadResponse {
   id: string;
-  fileName: string;
-  status: 'processing' | 'completed' | 'failed';
+  filename: string;
+  url: string;
   uploadedAt: string;
 }
 
 export interface ApiError {
   error: string;
-  code: string;
-}
-
-export async function uploadProject(
-  file: File, 
-  token: string
-): Promise<UploadResponse> {
-  // ... implementation
 }

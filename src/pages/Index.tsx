@@ -9,12 +9,7 @@ import { AIAnalysis } from "@/components/analysis/AIAnalysis";
 import { ChatInterface } from "@/components/chat/ChatInterface";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { BrainCogIcon, UploadCloudIcon, LayoutPanelLeftIcon, MessageSquareTextIcon } from "lucide-react";
-
-// Define a minimal FileNode type for selectedFile
-interface FileNode {
-  name: string;
-  // add other properties as needed
-}
+import { FileNode } from "@/components/explorer/types";
 
 const Index = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);

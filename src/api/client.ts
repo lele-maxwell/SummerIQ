@@ -1,3 +1,6 @@
+import { uploadProject } from './upload';
+import { UploadResponse, ApiError, API } from '../types/api';
+
 export class ApiClient {
   constructor(private token: string) {}
 
@@ -11,6 +14,10 @@ export class ApiClient {
         'Authorization': `Bearer ${this.token}`
       }
     });
+    if (!response.ok) {
+      const error: ApiError = await response.json();
+      throw new Error(error.error);
+    }
     return response.json();
   }
 
