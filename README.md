@@ -1,73 +1,76 @@
-# Welcome to your Lovable project
+# SummerIQ
 
-## Project info
+SummerIQ is a project aimed at providing intelligent analysis and insights.
 
-**URL**: https://lovable.dev/projects/f434fd1f-a408-427c-b179-4de363a53517
+## Project Structure
 
-## How can I edit this code?
+The project consists of two main parts:
 
-There are several ways of editing your application.
+1.  **Frontend**: Built with React, TypeScript, Vite, shadcn-ui, and Tailwind CSS.
+2.  **Backend**: A Rust application using axum, sqlx, and PostgreSQL for data storage.
 
-**Use Lovable**
+## Setup and Running Locally
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/f434fd1f-a408-427c-b179-4de363a53517) and start prompting.
+To set up and run SummerIQ locally, you need to have the following installed:
 
-Changes made via Lovable will be committed automatically to this repo.
+- Node.js & npm (or bun)
+- Rust and Cargo
+- PostgreSQL
+- sqlx-cli
 
-**Use your preferred IDE**
+### Backend Setup
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+1.  **Install Rust and Cargo**: Follow the instructions on the [official Rust website](https://www.rust-lang.org/tools/install).
+2.  **Install sqlx-cli**: `cargo install sqlx-cli --no-default-features --features native-tls,postgres`
+3.  **Set up PostgreSQL**: Ensure you have a PostgreSQL server running and a database created for SummerIQ. Make note of the database connection URL.
+4.  **Set Environment Variables**: Create a `.env` file in the `summeriq-backend` directory with your database connection URL. For example:
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+    ```dotenv
+    DATABASE_URL=postgres://user:password@host:port/database_name
+    ```
 
-Follow these steps:
+5.  **Run Migrations**: Navigate to the `summeriq-backend` directory and run the migrations.
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+    ```bash
+    cd summeriq-backend
+    sqlx migrate run
+    ```
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+6.  **Run the Backend**: Stay in the `summeriq-backend` directory and run the backend server.
 
-# Step 3: Install the necessary dependencies.
-npm i
+    ```bash
+    cargo run
+    ```
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
-```
+### Frontend Setup
 
-**Edit a file directly in GitHub**
+1.  **Navigate to the frontend directory**: `cd ..` (if you are in `summeriq-backend`) or ensure you are in the project root.
+2.  **Install dependencies**: `npm install` (or `bun install`)
+3.  **Run the Frontend**: Start the development server.
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+    ```bash
+    npm run dev
+    ```
 
-**Use GitHub Codespaces**
+    The frontend should be available at `http://localhost:8080/` or a similar port.
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+## How can I contribute?
 
-## What technologies are used for this project?
+...
 
-This project is built with:
+## Technologies Used
 
-- Vite
-- TypeScript
+**Frontend**:
+
 - React
+- TypeScript
+- Vite
 - shadcn-ui
 - Tailwind CSS
 
-## How can I deploy this project?
+**Backend**:
 
-Simply open [Lovable](https://lovable.dev/projects/f434fd1f-a408-427c-b179-4de363a53517) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+- Rust
+- axum
+- sqlx
+- PostgreSQL
