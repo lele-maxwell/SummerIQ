@@ -4,59 +4,40 @@ use axum::{
     Router,
     Json,
 };
-use crate::{
-    error::AppError,
-    models::message::{Message, CreateMessage},
-    services::ai::AIService,
-};
-use sqlx::PgPool;
-use uuid::Uuid;
+use serde::{Deserialize, Serialize};
+use std::sync::Arc;
+use crate::services::{AuthService, AIService};
+use crate::services::auth::AuthUser;
 
-pub fn chat_router() -> Router<(PgPool, AIService)> {
-    Router::new()
-        .route("/ask", post(ask))
+#[derive(Debug, Deserialize)]
+pub struct ChatRequest {
+    pub message: String,
 }
 
-async fn ask(
-    State((pool, ai)): State<(PgPool, AIService)>,
-    Json(payload): Json<CreateMessage>,
-) -> Result<Json<Message>, AppError> {
-    // Get file content from database
-    let files = sqlx::query!(
-        r#"
-        SELECT path, summary FROM files
-        WHERE upload_id = $1
-        "#,
-        payload.upload_id
-    )
-    .fetch_all(&pool)
-    .await?;
+#[derive(Debug, Serialize)]
+pub struct ChatResponse {
+    pub response: String,
+}
 
-    // Combine file contents for context
-    let context = files
-        .iter()
-        .map(|f| format!("File: {}\nContent: {}", f.path, f.summary))
-        .collect::<Vec<_>>()
-        .join("\n\n");
+pub fn chat_router() -> Router<(Arc<AuthService>, Arc<crate::services::StorageService>, Arc<AIService>)> {
+    Router::new()
+        .route("/chat", post(chat))
+}
 
-    // Get AI response
-    let answer = ai.answer_question(&context, &payload.question).await?;
+async fn chat(
+    State((_, _, ai_service)): State<(Arc<AuthService>, Arc<crate::services::StorageService>, Arc<AIService>)>,
+    _auth_user: AuthUser,
+    Json(request): Json<ChatRequest>,
+) -> Result<Json<ChatResponse>, axum::http::StatusCode> {
+    let messages = vec![
+        crate::services::ai::ChatMessage {
+            role: "user".to_string(),
+            content: request.message,
+        },
+    ];
 
-    // Save message
-    let message = sqlx::query_as!(
-        Message,
-        r#"
-        INSERT INTO messages (user_id, upload_id, question, answer)
-        VALUES ($1, $2, $3, $4)
-        RETURNING *
-        "#,
-        Uuid::new_v4(), // TODO: Get from auth
-        payload.upload_id,
-        payload.question,
-        answer
-    )
-    .fetch_one(&pool)
-    .await?;
+    let response = ai_service.chat(messages).await
+        .map_err(|_| axum::http::StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    Ok(Json(message))
+    Ok(Json(ChatResponse { response }))
 }

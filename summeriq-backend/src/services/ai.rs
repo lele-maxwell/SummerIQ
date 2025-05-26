@@ -1,6 +1,9 @@
 // src/config.rs
-use serde::Deserialize;
 use std::env;
+use reqwest::Client;
+use serde::{Deserialize, Serialize};
+use std::sync::Arc;
+use crate::error::AppError;
 
 #[derive(Debug, Clone)]
 pub struct Config {
@@ -27,5 +30,56 @@ impl Config {
                 .parse()
                 .unwrap_or(3000),
         })
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ChatMessage {
+    pub role: String,
+    pub content: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ChatRequest {
+    messages: Vec<ChatMessage>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct ChatResponse {
+    choices: Vec<Choice>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Choice {
+    message: ChatMessage,
+}
+
+pub struct AIService {
+    client: Client,
+    api_key: String,
+}
+
+impl AIService {
+    pub fn new(api_key: String) -> Self {
+        Self {
+            client: Client::new(),
+            api_key,
+        }
+    }
+
+    pub async fn chat(&self, messages: Vec<ChatMessage>) -> Result<String, AppError> {
+        let response = self.client
+            .post("https://openrouter.ai/api/v1/chat/completions")
+            .header("Authorization", format!("Bearer {}", self.api_key))
+            .json(&ChatRequest { messages })
+            .send()
+            .await
+            .map_err(|e| AppError::InternalError(e.to_string()))?;
+
+        let chat_response = response.json::<ChatResponse>()
+            .await
+            .map_err(|e| AppError::InternalError(e.to_string()))?;
+
+        Ok(chat_response.choices[0].message.content.clone())
     }
 }

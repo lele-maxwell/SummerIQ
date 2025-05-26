@@ -1,88 +1,142 @@
 use axum::{
     extract::{Multipart, State},
-    routing::post,
+    routing::{post, get},
     Router,
     Json,
+    middleware,
 };
-use crate::{
-    error::AppError,
-    models::upload::{Upload, CreateUpload},
-    services::{storage::StorageService, ai::AIService},
-};
-use sqlx::PgPool;
-use uuid::Uuid;
+use std::sync::Arc;
+use crate::services::{AuthService, StorageService};
+use crate::services::auth::AuthUser;
 use std::path::PathBuf;
-use tempfile::tempdir;
-use zip::ZipArchive;
-use std::io::Cursor;
+use tokio::fs;
+use uuid::Uuid;
+use serde_json::json;
+use crate::error::AppError;
+use crate::auth_middleware::auth_middleware;
 
-pub fn upload_router() -> Router<(PgPool, StorageService, AIService)> {
-    Router::new()
-        .route("/upload", post(upload))
+pub fn upload_router(
+    auth_service: Arc<AuthService>,
+    storage_service: Arc<StorageService>,
+    ai_service: Arc<crate::services::AIService>,
+) -> Router<(Arc<AuthService>, Arc<StorageService>, Arc<crate::services::AIService>)> {
+    tracing::info!("Initializing upload router");
+    let router = Router::new()
+        .route("/upload", post(upload_file))
+        .route("/debug/buckets", get(list_buckets))
+        .layer(middleware::from_fn_with_state(
+            (auth_service, storage_service, ai_service),
+            auth_middleware,
+        ));
+    tracing::info!("Upload router initialized with routes: /upload (POST), /debug/buckets (GET)");
+    router
 }
 
-async fn upload(
-    State((pool, storage, ai)): State<(PgPool, StorageService, AIService)>,
+async fn list_buckets(
+    State((_, storage_service, _)): State<(Arc<AuthService>, Arc<StorageService>, Arc<crate::services::AIService>)>,
+) -> Json<Vec<String>> {
+    match storage_service.list_buckets().await {
+        Ok(buckets) => Json(buckets),
+        Err(e) => {
+            tracing::error!("Failed to list buckets: {}", e);
+            Json(Vec::new())
+        }
+    }
+}
+
+async fn upload_file(
+    State((_, storage_service, _)): State<(Arc<AuthService>, Arc<StorageService>, Arc<crate::services::AIService>)>,
+    auth_user: AuthUser,
     mut multipart: Multipart,
-) -> Result<Json<Upload>, AppError> {
-    let mut file_data = Vec::new();
-    let mut file_name = String::new();
-
-    while let Some(field) = multipart.next_field().await.map_err(|e| AppError::FileError(e.to_string()))? {
-        if field.name() == Some("file") {
-            file_name = field.file_name()
-                .ok_or_else(|| AppError::FileError("No file name provided".into()))?
-                .to_string();
-            file_data = field.bytes().await.map_err(|e| AppError::FileError(e.to_string()))?;
+) -> Result<Json<serde_json::Value>, AppError> {
+    tracing::info!("Starting file upload for user: {}", auth_user.0);
+    tracing::debug!("Received multipart request");
+    
+    // Get the first field from the multipart form
+    let field = match multipart.next_field().await {
+        Ok(Some(field)) => {
+            tracing::info!("Successfully got multipart field");
+            field
+        },
+        Ok(None) => {
+            tracing::error!("No multipart field found in request");
+            return Err(AppError::ValidationError("No file provided".to_string()));
         }
+        Err(e) => {
+            tracing::error!("Failed to get multipart field: {}", e);
+            return Err(AppError::ValidationError(format!("Failed to process uploaded file: {}", e)));
+        }
+    };
+
+    // Get the field name to ensure it's 'file'
+    let field_name = field.name().unwrap_or_default();
+    tracing::info!("Processing field: {}", field_name);
+    
+    if field_name != "file" {
+        tracing::error!("Invalid field name: {}", field_name);
+        return Err(AppError::ValidationError("Invalid field name. Expected 'file'".to_string()));
     }
 
-    // Create temporary directory for extraction
-    let temp_dir = tempdir().map_err(|e| AppError::FileError(e.to_string()))?;
-    let temp_path = temp_dir.path();
-
-    // Extract zip file
-    let cursor = Cursor::new(file_data);
-    let mut archive = ZipArchive::new(cursor)
-        .map_err(|e| AppError::FileError(format!("Failed to read zip file: {}", e)))?;
-
-    for i in 0..archive.len() {
-        let mut file = archive.by_index(i)
-            .map_err(|e| AppError::FileError(format!("Failed to read file in zip: {}", e)))?;
-        
-        let outpath = temp_path.join(file.name());
-        if file.name().ends_with('/') {
-            std::fs::create_dir_all(&outpath)
-                .map_err(|e| AppError::FileError(format!("Failed to create directory: {}", e)))?;
-        } else {
-            if let Some(parent) = outpath.parent() {
-                std::fs::create_dir_all(parent)
-                    .map_err(|e| AppError::FileError(format!("Failed to create parent directory: {}", e)))?;
-            }
-            let mut outfile = std::fs::File::create(&outpath)
-                .map_err(|e| AppError::FileError(format!("Failed to create file: {}", e)))?;
-            std::io::copy(&mut file, &mut outfile)
-                .map_err(|e| AppError::FileError(format!("Failed to write file: {}", e)))?;
+    let file_name = match field.file_name() {
+        Some(name) => {
+            tracing::info!("File name from request: {}", name);
+            name.to_string()
+        },
+        None => {
+            tracing::error!("No filename provided in upload");
+            return Err(AppError::ValidationError("No filename provided".to_string()));
         }
+    };
+    
+    tracing::info!("Processing file: {}", file_name);
+    
+    // Read the file data
+    let data = match field.bytes().await {
+        Ok(data) => {
+            tracing::info!("Successfully read file data, size: {} bytes", data.len());
+            data
+        },
+        Err(e) => {
+            tracing::error!("Failed to read file data: {}", e);
+            return Err(AppError::FileError(format!("Failed to read file data: {}", e)));
+        }
+    };
+    
+    // Create a temporary file
+    let temp_path = PathBuf::from(format!("/tmp/{}", Uuid::new_v4()));
+    tracing::info!("Creating temporary file at: {:?}", temp_path);
+    
+    if let Err(e) = fs::write(&temp_path, &data).await {
+        tracing::error!("Failed to write temporary file: {}", e);
+        return Err(AppError::FileError(format!("Failed to process file: {}", e)));
     }
-
+    
+    tracing::info!("Temporary file written successfully");
+    
+    // Generate the storage key
+    let key = format!("{}/{}", auth_user.0, file_name);
+    tracing::info!("Uploading to MinIO with key: {}", key);
+    
     // Upload to MinIO
-    let minio_key = storage.upload_file(&temp_path, Uuid::new_v4()).await?;
-
-    // Create upload record
-    let upload = sqlx::query_as!(
-        Upload,
-        r#"
-        INSERT INTO uploads (user_id, file_name, minio_key)
-        VALUES ($1, $2, $3)
-        RETURNING *
-        "#,
-        Uuid::new_v4(), // TODO: Get from auth
-        file_name,
-        minio_key
-    )
-    .fetch_one(&pool)
-    .await?;
-
-    Ok(Json(upload))
+    if let Err(e) = storage_service.upload_file(&temp_path, &key).await {
+        tracing::error!("Failed to upload file to storage: {}", e);
+        // Clean up temp file before returning error
+        if let Err(cleanup_err) = fs::remove_file(&temp_path).await {
+            tracing::warn!("Failed to remove temporary file: {}", cleanup_err);
+        }
+        return Err(AppError::StorageError(format!("Failed to upload file: {}", e)));
+    }
+    
+    tracing::info!("File uploaded successfully to MinIO");
+    
+    // Clean up temp file
+    if let Err(e) = fs::remove_file(&temp_path).await {
+        tracing::warn!("Failed to remove temporary file: {}", e);
+    }
+    
+    Ok(Json(json!({
+        "key": key,
+        "fileName": file_name,
+        "success": true
+    })))
 }

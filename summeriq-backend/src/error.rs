@@ -1,6 +1,7 @@
 use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
+    Json,
 };
 use serde_json::json;
 use thiserror::Error;
@@ -16,20 +17,14 @@ pub enum AppError {
     #[error("Storage error: {0}")]
     StorageError(String),
     
-    #[error("AI service error: {0}")]
-    AIServiceError(String),
+    #[error("File error: {0}")]
+    FileError(String),
     
     #[error("Validation error: {0}")]
     ValidationError(String),
     
-    #[error("File processing error: {0}")]
-    FileError(String),
-    
-    #[error("Not found: {0}")]
-    NotFound(String),
-    
-    #[error("Internal server error")]
-    InternalError,
+    #[error("Internal error: {0}")]
+    InternalError(String),
 }
 
 impl IntoResponse for AppError {
@@ -38,19 +33,17 @@ impl IntoResponse for AppError {
             AppError::AuthError(msg) => (StatusCode::UNAUTHORIZED, msg),
             AppError::DatabaseError(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()),
             AppError::StorageError(msg) => (StatusCode::INTERNAL_SERVER_ERROR, msg),
-            AppError::AIServiceError(msg) => (StatusCode::INTERNAL_SERVER_ERROR, msg),
-            AppError::ValidationError(msg) => (StatusCode::BAD_REQUEST, msg),
             AppError::FileError(msg) => (StatusCode::BAD_REQUEST, msg),
-            AppError::NotFound(msg) => (StatusCode::NOT_FOUND, msg),
-            AppError::InternalError => (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                "Internal server error".to_string(),
-            ),
+            AppError::ValidationError(msg) => (StatusCode::BAD_REQUEST, msg),
+            AppError::InternalError(msg) => (StatusCode::INTERNAL_SERVER_ERROR, msg),
         };
 
-        let body = json!({
-            "error": error_message
-        });
+        let body = Json(json!({
+            "error": error_message,
+            "status": status.as_u16(),
+            "message": error_message,
+            "success": false
+        }));
 
         (status, body).into_response()
     }

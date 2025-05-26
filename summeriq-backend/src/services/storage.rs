@@ -1,8 +1,10 @@
-use aws_sdk_s3::{Client, types::ByteStream};
+use aws_sdk_s3::{Client, primitives::ByteStream, error::SdkError};
 use crate::error::AppError;
 use std::path::Path;
 use tokio::fs::File;
+use tokio::io::AsyncReadExt;
 use uuid::Uuid;
+use tracing::{error, info};
 
 pub struct StorageService {
     client: Client,
@@ -14,49 +16,100 @@ impl StorageService {
         Self { client, bucket }
     }
 
-    pub async fn upload_file(&self, file_path: &Path, user_id: Uuid) -> Result<String, AppError> {
-        let file = File::open(file_path).await
-            .map_err(|e| AppError::StorageError(format!("Failed to open file: {}", e)))?;
-
-        let key = format!("{}/{}.zip", user_id, Uuid::new_v4());
-        let body = ByteStream::from_file(file).await
-            .map_err(|e| AppError::StorageError(format!("Failed to create byte stream: {}", e)))?;
-
-        self.client
-            .put_object()
-            .bucket(&self.bucket)
-            .key(&key)
-            .body(body)
+    pub async fn list_buckets(&self) -> Result<Vec<String>, AppError> {
+        info!("Listing MinIO buckets");
+        
+        let response = self.client
+            .list_buckets()
             .send()
             .await
-            .map_err(|e| AppError::StorageError(format!("Failed to upload file: {}", e)))?;
+            .map_err(|e| {
+                error!("Failed to list buckets: {}", e);
+                match e {
+                    SdkError::ServiceError(err) => {
+                        AppError::StorageError(format!("MinIO service error: {}", err.err()))
+                    }
+                    _ => AppError::StorageError(format!("Failed to list buckets: {}", e))
+                }
+            })?;
 
-        Ok(key)
+        let buckets: Vec<String> = response.buckets()
+            .iter()
+            .filter_map(|b| b.name().map(String::from))
+            .collect();
+
+        info!("Found buckets: {:?}", buckets);
+        Ok(buckets)
     }
 
-    pub async fn get_file_url(&self, key: &str) -> Result<String, AppError> {
-        let presigned = self.client
+    pub async fn upload_file(&self, file_path: &Path, key: &str) -> Result<(), AppError> {
+        tracing::info!("Opening file for upload: {:?}", file_path);
+        let file = match tokio::fs::File::open(file_path).await {
+            Ok(file) => file,
+            Err(e) => {
+                tracing::error!("Failed to open file for upload: {}", e);
+                return Err(AppError::FileError(format!("Failed to open file: {}", e)));
+            }
+        };
+
+        let file_size = match file.metadata().await {
+            Ok(metadata) => metadata.len(),
+            Err(e) => {
+                tracing::error!("Failed to get file metadata: {}", e);
+                return Err(AppError::FileError(format!("Failed to get file metadata: {}", e)));
+            }
+        };
+        tracing::info!("File size: {} bytes", file_size);
+
+        let mut buffer = Vec::with_capacity(file_size as usize);
+        let mut reader = tokio::io::BufReader::new(file);
+        if let Err(e) = reader.read_to_end(&mut buffer).await {
+            tracing::error!("Failed to read file into memory: {}", e);
+            return Err(AppError::FileError(format!("Failed to read file: {}", e)));
+        }
+        tracing::info!("File read into memory, size: {} bytes", buffer.len());
+
+        let body = ByteStream::from(buffer);
+        tracing::info!("Attempting to upload to MinIO bucket: {} with key: {}", self.bucket, key);
+        
+        match self.client
+            .put_object()
+            .bucket(&self.bucket)
+            .key(key)
+            .body(body)
+            .send()
+            .await 
+        {
+            Ok(_) => {
+                tracing::info!("Successfully uploaded file to MinIO");
+                Ok(())
+            }
+            Err(e) => {
+                tracing::error!("Failed to upload file to MinIO: {}", e);
+                Err(AppError::StorageError(format!("Failed to upload file to storage: {}", e)))
+            }
+        }
+    }
+
+    pub async fn get_file(&self, key: &str) -> Result<Vec<u8>, anyhow::Error> {
+        let response = self.client
             .get_object()
             .bucket(&self.bucket)
             .key(key)
-            .presigned(aws_sdk_s3::presigning::config::PresigningConfig::builder()
-                .expires_in(std::time::Duration::from_secs(3600))
-                .build()
-                .map_err(|e| AppError::StorageError(format!("Failed to build presigning config: {}", e)))?)
-            .await
-            .map_err(|e| AppError::StorageError(format!("Failed to generate presigned URL: {}", e)))?;
+            .send()
+            .await?;
 
-        Ok(presigned.uri().to_string())
+        let bytes = response.body.collect().await?;
+        Ok(bytes.to_vec())
     }
 
-    pub async fn delete_file(&self, key: &str) -> Result<(), AppError> {
+    pub async fn delete_file(&self, key: &str) -> Result<(), anyhow::Error> {
         self.client
             .delete_object()
             .bucket(&self.bucket)
             .key(key)
             .send()
-            .await
-            .map_err(|e| AppError::StorageError(format!("Failed to delete file: {}", e)))?;
+            .await?;
 
         Ok(())
     }
