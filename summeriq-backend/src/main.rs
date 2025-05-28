@@ -109,6 +109,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             ACCEPT,
             CONTENT_TYPE,
             HeaderName::from_static("x-requested-with"),
+            HeaderName::from_static("content-type"),
+            HeaderName::from_static("content-length"),
         ])
         .allow_credentials(true)
         .max_age(Duration::from_secs(3600));

@@ -2,6 +2,9 @@ import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { UploadCloudIcon, FileIcon, Loader2Icon, CheckIcon, XIcon } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
+import { API } from "@/types/api";
+import { getApiUrl } from "@/lib/api";
+import { uploadProject } from "@/api/upload";
 
 interface FileUploadProps {
   onUploadComplete: (filename: string) => void;
@@ -10,67 +13,71 @@ interface FileUploadProps {
 export function FileUpload({ onUploadComplete }: FileUploadProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [file, setFile] = useState<File | null>(null);
-  const [uploading, setUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
   const [dragOver, setDragOver] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFile = e.target.files?.[0];
-    if (selectedFile && selectedFile.name.endsWith(".zip")) {
-      setFile(selectedFile);
-    } else if (selectedFile) {
-      // No toast call needed here
-    }
-  };
-
-  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+  const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setDragOver(false);
     
     const droppedFile = e.dataTransfer.files[0];
-    if (droppedFile && droppedFile.name.endsWith(".zip")) {
+    if (droppedFile && droppedFile.name.endsWith('.zip')) {
       setFile(droppedFile);
-    } else if (droppedFile) {
-      // No toast call needed here
+    } else {
+      setError('Please upload a ZIP file');
     }
   };
-  
-  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+
+  const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     setDragOver(true);
   };
-  
-  const handleDragLeave = () => {
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
     setDragOver(false);
   };
 
-  const handleUpload = () => {
-    if (!file) return;
-    
-    setUploading(true);
-    
-    // Simulate file upload with progress
-    let progress = 0;
-    const interval = setInterval(() => {
-      progress += Math.random() * 10;
-      if (progress > 100) progress = 100;
-      setUploadProgress(Math.floor(progress));
-      
-      if (progress === 100) {
-        clearInterval(interval);
-        setTimeout(() => {
-          setUploading(false);
-          onUploadComplete(file.name);
-        }, 500);
-      }
-    }, 300);
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = e.target.files?.[0];
+    if (selectedFile && selectedFile.name.endsWith('.zip')) {
+      setFile(selectedFile);
+      setError(null);
+    } else {
+      setError('Please upload a ZIP file');
+    }
   };
 
-  const resetUpload = () => {
+  const handleUpload = async () => {
+    if (!file) return;
+
+    setUploading(true);
+    setError(null);
+    setProgress(0);
+
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        throw new Error('Not authenticated');
+      }
+
+      const result = await uploadProject(file, token);
+      onUploadComplete(result.fileName);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Upload failed');
+    } finally {
+      setUploading(false);
+      setProgress(0);
+    }
+  };
+
+  const handleRemove = () => {
     setFile(null);
-    setUploadProgress(0);
+    setError(null);
     if (fileInputRef.current) {
-      fileInputRef.current.value = "";
+      fileInputRef.current.value = '';
     }
   };
 
@@ -109,38 +116,52 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
         ) : (
           <div className="w-full">
             <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center">
-                <FileIcon className="h-6 w-6 mr-2 text-muted-foreground" />
-                <div>
-                  <p className="font-medium">{file.name}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {(file.size / (1024 * 1024)).toFixed(2)} MB
-                  </p>
-                </div>
+              <div className="flex items-center space-x-2">
+                <FileIcon className="h-5 w-5 text-muted-foreground" />
+                <span className="font-medium">{file.name}</span>
               </div>
-              
-              <button 
-                onClick={resetUpload} 
-                className="p-1 hover:bg-secondary rounded-full"
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={handleRemove}
                 disabled={uploading}
               >
                 <XIcon className="h-4 w-4" />
-              </button>
+              </Button>
             </div>
             
-            {uploading ? (
-              <div className="space-y-2">
-                <Progress value={uploadProgress} className="h-2" />
-                <div className="flex justify-between text-xs text-muted-foreground">
-                  <span>Uploading...</span>
-                  <span>{uploadProgress}%</span>
-                </div>
+            {error && (
+              <div className="mb-4 p-3 bg-destructive/10 text-destructive text-sm rounded-md">
+                {error}
               </div>
-            ) : (
-              <Button onClick={handleUpload} className="w-full mt-2">
-                Upload and Analyze
-              </Button>
             )}
+
+            {uploading && (
+              <div className="space-y-2">
+                <Progress value={progress} className="w-full" />
+                <p className="text-sm text-muted-foreground text-center">
+                  Uploading... {progress}%
+                </p>
+              </div>
+            )}
+
+            <Button
+              onClick={handleUpload}
+              disabled={uploading}
+              className="w-full"
+            >
+              {uploading ? (
+                <>
+                  <Loader2Icon className="mr-2 h-4 w-4 animate-spin" />
+                  Uploading...
+                </>
+              ) : (
+                <>
+                  <UploadCloudIcon className="mr-2 h-4 w-4" />
+                  Upload Project
+                </>
+              )}
+            </Button>
           </div>
         )}
       </div>

@@ -4,7 +4,7 @@ use std::path::Path;
 use tokio::fs::File;
 use tokio::io::AsyncReadExt;
 use uuid::Uuid;
-use tracing::{error, info};
+use tracing::{error, info, debug};
 
 pub struct StorageService {
     client: Client,
@@ -13,7 +13,72 @@ pub struct StorageService {
 
 impl StorageService {
     pub fn new(client: Client, bucket: String) -> Self {
+        info!("Creating StorageService with bucket: {}", bucket);
         Self { client, bucket }
+    }
+
+    pub fn bucket_name(&self) -> &str {
+        &self.bucket
+    }
+
+    async fn ensure_bucket_exists(&self) -> Result<(), AppError> {
+        info!("Checking if bucket exists: {}", self.bucket);
+        
+        // First try to list buckets to see if ours exists
+        match self.client.list_buckets().send().await {
+            Ok(response) => {
+                let buckets: Vec<String> = response.buckets()
+                    .iter()
+                    .filter_map(|b| b.name().map(String::from))
+                    .collect();
+                
+                info!("Available buckets: {:?}", buckets);
+                
+                if buckets.contains(&self.bucket) {
+                    info!("Bucket {} already exists", self.bucket);
+                    return Ok(());
+                }
+            }
+            Err(e) => {
+                let error_msg = format!("Failed to list buckets: {}", e);
+                error!("{}", error_msg);
+                return Err(AppError::StorageError(error_msg));
+            }
+        }
+
+        // Bucket doesn't exist, try to create it
+        info!("Creating bucket: {}", self.bucket);
+        match self.client
+            .create_bucket()
+            .bucket(&self.bucket)
+            .send()
+            .await 
+        {
+            Ok(_) => {
+                info!("Successfully created bucket: {}", self.bucket);
+                Ok(())
+            }
+            Err(e) => {
+                let error_msg = format!("Failed to create bucket: {}", e);
+                error!("{}", error_msg);
+                match e {
+                    SdkError::ServiceError(err) => {
+                        if err.err().is_bucket_already_exists() {
+                            info!("Bucket {} already exists (race condition)", self.bucket);
+                            Ok(())
+                        } else {
+                            let error_msg = format!("MinIO service error: {}", err.err());
+                            error!("{}", error_msg);
+                            Err(AppError::StorageError(error_msg))
+                        }
+                    }
+                    _ => {
+                        error!("{}", error_msg);
+                        Err(AppError::StorageError(error_msg))
+                    }
+                }
+            }
+        }
     }
 
     pub async fn list_buckets(&self) -> Result<Vec<String>, AppError> {
@@ -27,9 +92,15 @@ impl StorageService {
                 error!("Failed to list buckets: {}", e);
                 match e {
                     SdkError::ServiceError(err) => {
-                        AppError::StorageError(format!("MinIO service error: {}", err.err()))
+                        let error_msg = format!("MinIO service error: {}", err.err());
+                        error!("{}", error_msg);
+                        AppError::StorageError(error_msg)
                     }
-                    _ => AppError::StorageError(format!("Failed to list buckets: {}", e))
+                    _ => {
+                        let error_msg = format!("Failed to list buckets: {}", e);
+                        error!("{}", error_msg);
+                        AppError::StorageError(error_msg)
+                    }
                 }
             })?;
 
@@ -43,35 +114,46 @@ impl StorageService {
     }
 
     pub async fn upload_file(&self, file_path: &Path, key: &str) -> Result<(), AppError> {
-        tracing::info!("Opening file for upload: {:?}", file_path);
-        let file = match tokio::fs::File::open(file_path).await {
-            Ok(file) => file,
-            Err(e) => {
-                tracing::error!("Failed to open file for upload: {}", e);
-                return Err(AppError::FileError(format!("Failed to open file: {}", e)));
-            }
-        };
-
-        let file_size = match file.metadata().await {
-            Ok(metadata) => metadata.len(),
-            Err(e) => {
-                tracing::error!("Failed to get file metadata: {}", e);
-                return Err(AppError::FileError(format!("Failed to get file metadata: {}", e)));
-            }
-        };
-        tracing::info!("File size: {} bytes", file_size);
-
-        let mut buffer = Vec::with_capacity(file_size as usize);
-        let mut reader = tokio::io::BufReader::new(file);
-        if let Err(e) = reader.read_to_end(&mut buffer).await {
-            tracing::error!("Failed to read file into memory: {}", e);
-            return Err(AppError::FileError(format!("Failed to read file: {}", e)));
-        }
-        tracing::info!("File read into memory, size: {} bytes", buffer.len());
-
-        let body = ByteStream::from(buffer);
-        tracing::info!("Attempting to upload to MinIO bucket: {} with key: {}", self.bucket, key);
+        println!("DEBUG: ===== Starting storage service upload =====");
+        println!("DEBUG: File path: {:?}, Key: {}", file_path, key);
+        debug!("Starting file upload process");
+        debug!("File path: {:?}, Key: {}", file_path, key);
         
+        // Ensure bucket exists before attempting upload
+        println!("DEBUG: Ensuring bucket exists");
+        debug!("Ensuring bucket exists");
+        self.ensure_bucket_exists().await?;
+        println!("DEBUG: Bucket check completed");
+        debug!("Bucket check completed");
+
+        // Check if file exists
+        if !file_path.exists() {
+            let error_msg = format!("File does not exist: {:?}", file_path);
+            println!("DEBUG: {}", error_msg);
+            error!("{}", error_msg);
+            return Err(AppError::FileError(error_msg));
+        }
+        println!("DEBUG: File exists at path");
+        debug!("File exists at path");
+
+        // Create byte stream directly from file
+        let body = match ByteStream::from_path(file_path).await {
+            Ok(stream) => {
+                println!("DEBUG: Successfully created ByteStream from file");
+                stream
+            },
+            Err(e) => {
+                let error_msg = format!("Failed to create ByteStream from file: {}", e);
+                println!("DEBUG: {}", error_msg);
+                error!("{}", error_msg);
+                return Err(AppError::FileError(error_msg));
+            }
+        };
+
+        println!("DEBUG: Attempting to upload to MinIO bucket: {} with key: {}", self.bucket, key);
+        info!("Attempting to upload to MinIO bucket: {} with key: {}", self.bucket, key);
+        
+        // Upload to MinIO
         match self.client
             .put_object()
             .bucket(&self.bucket)
@@ -81,12 +163,27 @@ impl StorageService {
             .await 
         {
             Ok(_) => {
-                tracing::info!("Successfully uploaded file to MinIO");
+                println!("DEBUG: Successfully uploaded file to MinIO");
+                info!("Successfully uploaded file to MinIO");
                 Ok(())
             }
             Err(e) => {
-                tracing::error!("Failed to upload file to MinIO: {}", e);
-                Err(AppError::StorageError(format!("Failed to upload file to storage: {}", e)))
+                println!("DEBUG: Failed to upload file to MinIO: {}", e);
+                error!("Failed to upload file to MinIO: {}", e);
+                match e {
+                    SdkError::ServiceError(err) => {
+                        let error_msg = format!("MinIO service error: {}", err.err());
+                        println!("DEBUG: {}", error_msg);
+                        error!("{}", error_msg);
+                        Err(AppError::StorageError(error_msg))
+                    }
+                    _ => {
+                        let error_msg = format!("Failed to upload file: {}", e);
+                        println!("DEBUG: {}", error_msg);
+                        error!("{}", error_msg);
+                        Err(AppError::StorageError(error_msg))
+                    }
+                }
             }
         }
     }

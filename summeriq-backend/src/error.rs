@@ -17,34 +17,42 @@ pub enum AppError {
     #[error("Storage error: {0}")]
     StorageError(String),
     
-    #[error("File error: {0}")]
-    FileError(String),
+    #[error("AI service error: {0}")]
+    AIServiceError(String),
     
     #[error("Validation error: {0}")]
     ValidationError(String),
     
-    #[error("Internal error: {0}")]
+    #[error("File error: {0}")]
+    FileError(String),
+    
+    #[error("Bad request: {0}")]
+    BadRequest(String),
+    
+    #[error("Internal server error: {0}")]
     InternalError(String),
 }
 
 impl IntoResponse for AppError {
     fn into_response(self) -> Response {
-        let (status, error_message) = match self {
-            AppError::AuthError(msg) => (StatusCode::UNAUTHORIZED, msg),
+        let (status, error_message) = match &self {
+            AppError::AuthError(msg) => (StatusCode::UNAUTHORIZED, msg.clone()),
             AppError::DatabaseError(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()),
-            AppError::StorageError(msg) => (StatusCode::INTERNAL_SERVER_ERROR, msg),
-            AppError::FileError(msg) => (StatusCode::BAD_REQUEST, msg),
-            AppError::ValidationError(msg) => (StatusCode::BAD_REQUEST, msg),
-            AppError::InternalError(msg) => (StatusCode::INTERNAL_SERVER_ERROR, msg),
+            AppError::StorageError(msg) => (StatusCode::INTERNAL_SERVER_ERROR, msg.clone()),
+            AppError::AIServiceError(msg) => (StatusCode::INTERNAL_SERVER_ERROR, msg.clone()),
+            AppError::ValidationError(msg) => (StatusCode::BAD_REQUEST, msg.clone()),
+            AppError::FileError(msg) => (StatusCode::BAD_REQUEST, msg.clone()),
+            AppError::BadRequest(msg) => (StatusCode::BAD_REQUEST, msg.clone()),
+            AppError::InternalError(msg) => (StatusCode::INTERNAL_SERVER_ERROR, msg.clone()),
         };
 
-        let body = Json(json!({
-            "error": error_message,
-            "status": status.as_u16(),
-            "message": error_message,
-            "success": false
-        }));
+        tracing::error!("Returning error: {:?}", self);
 
-        (status, body).into_response()
+        let body = json!({
+            "error": error_message,
+            "details": format!("{:?}", self)
+        });
+
+        (status, Json(body)).into_response()
     }
 }

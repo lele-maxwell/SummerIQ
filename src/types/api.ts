@@ -1,4 +1,5 @@
 export interface API {
+  baseUrl: string;
   // Auth
   register: string;
   login: string;
@@ -15,6 +16,7 @@ export interface API {
 }
 
 export const API: API = {
+  baseUrl: 'http://localhost:3000',
   // Auth
   register: '/api/auth/register',
   login: '/api/auth/login',
@@ -24,17 +26,15 @@ export const API: API = {
   getUploads: '/api/uploads',
   
   // Chat
-  ask: '/api/ask',
+  ask: '/api/ask',  
   
   // User
   getMe: '/api/me'
 };
 
 export interface UploadResponse {
-  id: string;
-  filename: string;
-  url: string;
-  uploadedAt: string;
+  key: string;
+  fileName: string;
 }
 
 export interface ApiError {

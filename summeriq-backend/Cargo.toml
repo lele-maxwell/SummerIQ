@@ -6,6 +6,9 @@ edition = "2021"
 [dependencies]
 # Web Framework
 axum = { version = "0.7", features = ["multipart"] }
+axum-extra = "0.9"
+headers = "0.4"
+multer = "2.1"
 tower = "0.4"
 tower-http = { version = "0.5", features = ["cors", "trace"] }
 hyper = { version = "1.0", features = ["full"] }

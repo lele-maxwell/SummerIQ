@@ -3,9 +3,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { API } from "@/types/api";
+import { getApiUrl } from "@/lib/api";
 
 export function AuthForm({ onSuccess }: { onSuccess: () => void }) {
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const [loginData, setLoginData] = useState({
     email: "",
@@ -27,38 +30,77 @@ export function AuthForm({ onSuccess }: { onSuccess: () => void }) {
     setSignupData({ ...signupData, [e.target.name]: e.target.value });
   };
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
+    setError(null);
     
-    // Simulate API call
-    setTimeout(() => {
-      setIsLoading(false);
-      // For demo purposes, just check if fields are filled
-      if (loginData.email && loginData.password) {
-        onSuccess();
+    try {
+      const response = await fetch(getApiUrl(API.login), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: loginData.email,
+          password: loginData.password,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        setError(error.error || 'Login failed');
+        return;
       }
-    }, 1000);
+
+      const data = await response.json();
+      localStorage.setItem('token', data.token);
+      onSuccess();
+    } catch (err) {
+      setError('Failed to login. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const handleSignup = (e: React.FormEvent) => {
+  const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
+    setError(null);
     
-    // Simulate API call
-    setTimeout(() => {
+    if (signupData.password !== signupData.confirmPassword) {
+      setError('Passwords do not match');
       setIsLoading(false);
-      
-      if (!signupData.name || !signupData.email || !signupData.password) {
+      return;
+    }
+    
+    try {
+      const response = await fetch(getApiUrl(API.register), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: signupData.name,
+          email: signupData.email,
+          password: signupData.password,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json();
+        setError(error.error || 'Registration failed');
         return;
       }
-      
-      if (signupData.password !== signupData.confirmPassword) {
-        return;
-      }
-      
+
+      const data = await response.json();
+      localStorage.setItem('token', data.token);
       onSuccess();
-    }, 1500);
+    } catch (err) {
+      setError('Failed to register. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -68,6 +110,11 @@ export function AuthForm({ onSuccess }: { onSuccess: () => void }) {
           <TabsTrigger value="login">Login</TabsTrigger>
           <TabsTrigger value="signup">Sign Up</TabsTrigger>
         </TabsList>
+        {error && (
+          <div className="mt-4 p-3 bg-destructive/10 text-destructive text-sm rounded-md">
+            {error}
+          </div>
+        )}
         <TabsContent value="login" className="space-y-4 pt-4">
           <form onSubmit={handleLogin} className="space-y-4">
             <div className="space-y-2">
