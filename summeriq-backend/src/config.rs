@@ -59,6 +59,7 @@ pub struct Config {
     pub minio_access_key: String,
     pub minio_secret_key: String,
     pub openrouter_api_key: String,
+    pub minio_bucket_name: String,
 }
 
 impl Config {
@@ -106,6 +107,12 @@ impl Config {
                 e
             })?;
 
+        let minio_bucket_name = env::var("MINIO_BUCKET_NAME")
+            .map_err(|e| {
+                tracing::error!("Failed to load MINIO_BUCKET_NAME: {}", e);
+                e
+            })?;
+            
         tracing::debug!("Successfully loaded all configuration variables");
         
         Ok(Self {
@@ -116,6 +123,7 @@ impl Config {
             minio_access_key,
             minio_secret_key,
             openrouter_api_key,
+            minio_bucket_name,
         })
     }
 }

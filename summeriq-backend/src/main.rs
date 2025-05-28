@@ -93,7 +93,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Initialize services
     let auth_service = Arc::new(services::auth::AuthService::new(pool.clone(), config.jwt_secret));
-    let storage_service = Arc::new(services::storage::StorageService::new(s3_client, "uploaded-folders".to_string()));
+    let storage_service = Arc::new(services::storage::StorageService::new(s3_client, config.minio_bucket_name.clone()));
     let ai_service = Arc::new(services::ai::AIService::new(config.openrouter_api_key));
 
     // Configure CORS

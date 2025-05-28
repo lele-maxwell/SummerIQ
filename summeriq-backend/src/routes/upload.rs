@@ -51,11 +51,10 @@ pub async fn upload_file(
     auth_user: AuthUser,
     mut multipart: Multipart,
 ) -> Result<impl IntoResponse, AppError> {
-    println!("DEBUG: ===== Starting upload_file handler =====");
-    println!("DEBUG: Auth user: {:?}", auth_user);
-    println!("DEBUG: Storage service bucket: {}", storage_service.bucket_name());
+    debug!("===== Starting upload_file handler =====");
+    debug!("Auth user: {:?}", auth_user);
+    debug!("Storage service bucket: {}", storage_service.bucket_name());
     
-    println!("DEBUG: Starting file upload for user: {}", auth_user.0);
     info!("Starting file upload for user: {}", auth_user.0);
     debug!("Received multipart request");
 
@@ -64,99 +63,87 @@ pub async fn upload_file(
     let mut content_type = None;
 
     // Process multipart form data
-    println!("DEBUG: Starting to process multipart form data");
+    debug!("Starting to process multipart form data");
     while let Some(field) = multipart.next_field().await.map_err(|e| {
-        println!("DEBUG: Failed to read multipart field: {:?}", e);
-        error!("Failed to read multipart field: {:?}", e);
-        AppError::BadRequest(format!("Failed to read multipart field: {}", e))
+        let field_name = field.name().unwrap_or("unnamed").to_string();
+        error!("Failed to read multipart field '{}': {:?}", field_name, e);
+        AppError::BadRequest(format!("Failed to read multipart field '{}': {}", field_name, e))
     })? {
         let name = field.name().unwrap_or("unnamed").to_string();
-        println!("DEBUG: Processing field: {}", name);
         debug!("Processing field: {}", name);
 
         if name == "file" {
             file_name = field.file_name().map(|f| f.to_string());
             content_type = field.content_type().map(|ct| ct.to_string());
-            println!("DEBUG: File details - Name: {:?}, Content-Type: {:?}", file_name, content_type);
             debug!("File details - Name: {:?}, Content-Type: {:?}", file_name, content_type);
 
             let data = field.bytes().await.map_err(|e| {
-                println!("DEBUG: Failed to read field bytes: {:?}", e);
-                error!("Failed to read field bytes: {:?}", e);
-                AppError::BadRequest(format!("Failed to read uploaded data: {}", e))
+                error!("Failed to read field bytes for field '{}': {:?}", name, e);
+                AppError::BadRequest(format!("Failed to read uploaded data for field '{}': {}", name, e))
             })?;
 
-            println!("DEBUG: Read {} bytes of file data", data.len());
-            info!("Read {} bytes of file data", data.len());
+            info!("Read {} bytes of file data for field '{}'", data.len(), name);
             file_data = Some(data);
         }
     }
 
     // Validate file data
     let file_data = file_data.ok_or_else(|| {
-        println!("DEBUG: No file data found in request");
-        error!("No file data found in request");
+        error!("No file data found in request for user {}", auth_user.0);
         AppError::BadRequest("No file data found in request".to_string())
     })?;
 
     // Validate file name
     let file_name = file_name.ok_or_else(|| {
-        println!("DEBUG: No filename provided");
-        error!("No filename provided");
+        error!("No filename provided in request for user {}", auth_user.0);
         AppError::BadRequest("No filename provided".to_string())
     })?;
 
     // Validate file extension
     if !file_name.ends_with(".zip") {
-        println!("DEBUG: Invalid file type: {}", file_name);
-        error!("Invalid file type: {}", file_name);
+        error!("Invalid file type: {} for user {}", file_name, auth_user.0);
         return Err(AppError::BadRequest("Only .zip files are supported".to_string()));
     }
 
     // Create temporary file
     let temp_dir = std::env::temp_dir();
     let temp_file_path = temp_dir.join(&file_name);
-    println!("DEBUG: Creating temporary file at: {:?}", temp_file_path);
-    info!("Creating temporary file at: {:?}", temp_file_path);
+    info!("Creating temporary file at: {:?} for user {}", temp_file_path, auth_user.0);
 
     // Write file data to temporary file
     fs::write(&temp_file_path, &file_data).await.map_err(|e| {
-        println!("DEBUG: Failed to write temporary file: {:?}", e);
-        error!("Failed to write temporary file: {:?}", e);
+        error!("Failed to write temporary file '{:?}': {:?}", temp_file_path, e);
         AppError::InternalError(format!("Failed to process uploaded file: {}", e))
     })?;
 
     // Generate storage key
     let storage_key = format!("{}/{}", auth_user.0, file_name);
-    println!("DEBUG: Uploading to MinIO with key: {}", storage_key);
-    info!("Uploading to MinIO with key: {}", storage_key);
+    info!("Uploading to MinIO with key: {} for user {}", storage_key, auth_user.0);
 
     // Upload to MinIO
+    let bucket_name = storage_service.bucket_name();
     let upload_result = storage_service.upload_file(&temp_file_path, &storage_key).await;
 
     // Clean up temporary file regardless of upload result
     if let Err(cleanup_err) = fs::remove_file(&temp_file_path).await {
-        println!("DEBUG: Failed to remove temporary file: {:?}", cleanup_err);
-        error!("Failed to remove temporary file: {:?}", cleanup_err);
+        error!("Failed to remove temporary file '{:?}': {:?}", temp_file_path, cleanup_err);
     }
 
     // Handle upload result
     match upload_result {
         Ok(_) => {
-            println!("DEBUG: Successfully uploaded file to MinIO");
-            info!("Successfully uploaded file to MinIO");
+            info!("Successfully uploaded file '{}' to MinIO bucket '{}' with key '{}' for user {}", file_name, bucket_name, storage_key, auth_user.0);
             
             Ok(Json(json!({
                 "message": "File uploaded successfully",
-                "fileName": file_name,
-                "key": storage_key,
+                "fileName": file_name.clone(),
+                "key": storage_key.clone(),
                 "contentType": content_type.unwrap_or_else(|| "application/zip".to_string())
             })))
         }
         Err(e) => {
-            println!("DEBUG: Failed to upload to MinIO: {:?}", e);
-            error!("Failed to upload to MinIO: {:?}", e);
-            Err(AppError::StorageError(format!("Failed to upload file: {}", e)))
+            error!("Failed to upload file '{}' to MinIO bucket '{}' with key '{}': {:?} for user {}", file_name, bucket_name, storage_key, e, auth_user.0);
+            Err(AppError::StorageError(format!("Failed to upload file '{}' to bucket '{}' with key '{}': {}", file_name, bucket_name, storage_key, e)))
         }
     }
 }
