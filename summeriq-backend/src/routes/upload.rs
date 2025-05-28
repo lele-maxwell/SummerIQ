@@ -47,13 +47,19 @@ async fn list_buckets(
 }
 
 pub async fn upload_file(
-    State((_, storage_service, _)): State<(Arc<AuthService>, Arc<StorageService>, Arc<crate::services::AIService>)>,
+    State((_storage_service, _)): State<(Arc<AuthService>, Arc<StorageService>, Arc<crate::services::AIService>)>,
     auth_user: AuthUser,
-    mut multipart: Multipart,
+    // mut multipart: Multipart, // Temporarily commented out for diagnostics
 ) -> Result<impl IntoResponse, AppError> {
+    tracing::error!("!!!!!!!!!!!!!!!!!!!! ENTERING UPLOAD_FILE HANDLER !!!!!!!!!!!!!!!!!!!!");
+    debug!("Auth user: {:?}", auth_user); // Keep this for basic check if auth middleware runs
+
+    // Temporarily skip all multipart processing for diagnostics
+    Ok(Json(json!({"message": "Handler entered for diagnostics. Multipart processing skipped."})))
+
+    /*
     debug!("===== Starting upload_file handler =====");
-    debug!("Auth user: {:?}", auth_user);
-    debug!("Storage service bucket: {}", storage_service.bucket_name());
+    debug!("Storage service bucket: {}", _storage_service.bucket_name());
     
     info!("Starting file upload for user: {}", auth_user.0);
     debug!("Received multipart request");
@@ -121,8 +127,8 @@ pub async fn upload_file(
     info!("Uploading to MinIO with key: {} for user {}", storage_key, auth_user.0);
 
     // Upload to MinIO
-    let bucket_name = storage_service.bucket_name();
-    let upload_result = storage_service.upload_file(&temp_file_path, &storage_key).await;
+    let bucket_name = _storage_service.bucket_name();
+    let upload_result = _storage_service.upload_file(&temp_file_path, &storage_key).await;
 
     // Clean up temporary file regardless of upload result
     if let Err(cleanup_err) = fs::remove_file(&temp_file_path).await {
@@ -146,4 +152,5 @@ pub async fn upload_file(
             Err(AppError::StorageError(format!("Failed to upload file '{}' to bucket '{}' with key '{}': {}", file_name, bucket_name, storage_key, e)))
         }
     }
+    */
 }
