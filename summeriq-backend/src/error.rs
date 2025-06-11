@@ -1,9 +1,5 @@
-use axum::{
-    http::StatusCode,
-    response::{IntoResponse, Response},
-    Json,
-};
-use serde_json::json;
+use actix_web::{HttpResponse, ResponseError};
+use actix_multipart::MultipartError;
 use sqlx::Error as SqlxError;
 use std::io::Error as IoError;
 use thiserror::Error;
@@ -11,7 +7,7 @@ use thiserror::Error;
 #[derive(Error, Debug)]
 pub enum AppError {
     #[error("Authentication error: {0}")]
-    AuthError(String),
+    AuthenticationError(String),
     
     #[error("Database error: {0}")]
     DatabaseError(#[from] SqlxError),
@@ -25,9 +21,6 @@ pub enum AppError {
     #[error("Upload error: {0}")]
     UploadError(String),
     
-    #[error("AI service error: {0}")]
-    AIServiceError(String),
-    
     #[error("Validation error: {0}")]
     ValidationError(String),
     
@@ -38,48 +31,65 @@ pub enum AppError {
     BadRequest(String),
     
     #[error("Internal server error: {0}")]
-    InternalError(String),
+    InternalServerError(String),
 }
 
-impl IntoResponse for AppError {
-    fn into_response(self) -> Response {
-        let (status, error_message) = match &self {
-            AppError::AuthError(msg) => (StatusCode::UNAUTHORIZED, msg.clone()),
-            AppError::DatabaseError(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()),
-            AppError::IoError(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()),
-            AppError::BadRequest(msg) => (StatusCode::BAD_REQUEST, msg.clone()),
-            AppError::StorageError(msg) => (StatusCode::INTERNAL_SERVER_ERROR, msg.clone()),
-            AppError::UploadError(msg) => (StatusCode::INTERNAL_SERVER_ERROR, msg.clone()),
-            AppError::AIServiceError(msg) => (StatusCode::INTERNAL_SERVER_ERROR, msg.clone()),
-            AppError::ValidationError(msg) => (StatusCode::BAD_REQUEST, msg.clone()),
-            AppError::FileError(msg) => (StatusCode::BAD_REQUEST, msg.clone()),
-            AppError::InternalError(msg) => (StatusCode::INTERNAL_SERVER_ERROR, msg.clone()),
-        };
-
-        tracing::error!("Returning error: {:?}", self);
-
-        let body = json!({
-            "error": error_message,
-            "details": format!("{:?}", self)
-        });
-
-        (status, Json(body)).into_response()
+impl From<MultipartError> for AppError {
+    fn from(error: MultipartError) -> Self {
+        AppError::UploadError(error.to_string())
     }
 }
 
-impl From<AppError> for StatusCode {
-    fn from(error: AppError) -> Self {
-        match error {
-            AppError::AuthError(_) => StatusCode::UNAUTHORIZED,
-            AppError::DatabaseError(_) => StatusCode::INTERNAL_SERVER_ERROR,
-            AppError::IoError(_) => StatusCode::INTERNAL_SERVER_ERROR,
-            AppError::StorageError(_) => StatusCode::INTERNAL_SERVER_ERROR,
-            AppError::UploadError(_) => StatusCode::INTERNAL_SERVER_ERROR,
-            AppError::AIServiceError(_) => StatusCode::INTERNAL_SERVER_ERROR,
-            AppError::ValidationError(_) => StatusCode::BAD_REQUEST,
-            AppError::FileError(_) => StatusCode::BAD_REQUEST,
-            AppError::BadRequest(_) => StatusCode::BAD_REQUEST,
-            AppError::InternalError(_) => StatusCode::INTERNAL_SERVER_ERROR,
+impl ResponseError for AppError {
+    fn error_response(&self) -> HttpResponse {
+        tracing::error!("Returning error: {:?}", self);
+        
+        match self {
+            AppError::AuthenticationError(_) => {
+                HttpResponse::Unauthorized().json(serde_json::json!({
+                    "error": self.to_string()
+                }))
+            }
+            AppError::DatabaseError(_) => {
+                HttpResponse::InternalServerError().json(serde_json::json!({
+                    "error": "Database error occurred"
+                }))
+            }
+            AppError::IoError(_) => {
+                HttpResponse::InternalServerError().json(serde_json::json!({
+                    "error": "IO error occurred"
+                }))
+            }
+            AppError::StorageError(_) => {
+                HttpResponse::InternalServerError().json(serde_json::json!({
+                    "error": self.to_string()
+                }))
+            }
+            AppError::UploadError(_) => {
+                HttpResponse::BadRequest().json(serde_json::json!({
+                    "error": self.to_string()
+                }))
+            }
+            AppError::ValidationError(_) => {
+                HttpResponse::BadRequest().json(serde_json::json!({
+                    "error": self.to_string()
+                }))
+            }
+            AppError::FileError(_) => {
+                HttpResponse::BadRequest().json(serde_json::json!({
+                    "error": self.to_string()
+                }))
+            }
+            AppError::BadRequest(_) => {
+                HttpResponse::BadRequest().json(serde_json::json!({
+                    "error": self.to_string()
+                }))
+            }
+            AppError::InternalServerError(_) => {
+                HttpResponse::InternalServerError().json(serde_json::json!({
+                    "error": "Internal server error occurred"
+                }))
+            }
         }
     }
 }
