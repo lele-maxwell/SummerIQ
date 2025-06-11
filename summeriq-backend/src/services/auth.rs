@@ -1,158 +1,108 @@
-use axum::{
-    async_trait,
-    extract::FromRequestParts,
-    http::{request::Parts, StatusCode},
-};
+use actix_web::web;
+use bcrypt::{hash, verify, DEFAULT_COST};
 use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation};
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
-use std::sync::Arc;
-use bcrypt::{hash, DEFAULT_COST};
-use chrono::{Utc, Duration};
+use tracing::{info, error};
 use uuid::Uuid;
 
-use crate::{
-    error::AppError,
-    models::user::User,
-};
+use crate::error::AppError;
+use crate::models::user::{CreateUser, LoginUser, User};
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct Claims {
-    pub sub: String,
-    pub exp: usize,
+struct Claims {
+    sub: String,
+    exp: usize,
 }
 
 pub struct AuthService {
-    pool: PgPool,
+    pub pool: PgPool,
     jwt_secret: String,
 }
 
 impl AuthService {
     pub fn new(pool: PgPool, jwt_secret: String) -> Self {
-        Self { pool, jwt_secret }
+        Self {
+            pool,
+            jwt_secret,
+        }
     }
 
-    pub async fn register(&self, name: &str, email: &str, password: &str) -> Result<User, AppError> {
-        // Check if user already exists
-        let existing_user = sqlx::query_as::<_, User>(
-            "SELECT * FROM users WHERE email = $1"
+    pub async fn register(&self, user_data: CreateUser) -> Result<User, AppError> {
+        let password_hash = hash(user_data.password.as_bytes(), DEFAULT_COST)
+            .map_err(|e| AppError::AuthenticationError(e.to_string()))?;
+
+        let user = sqlx::query_as!(
+            User,
+            r#"
+            INSERT INTO users (email, password_hash, full_name)
+            VALUES ($1, $2, $3)
+            RETURNING id, email, password_hash, full_name, created_at, updated_at
+            "#,
+            user_data.email,
+            password_hash,
+            user_data.full_name
         )
-        .bind(email)
-        .fetch_optional(&self.pool)
-        .await
-        .map_err(|e| AppError::InternalError(e.to_string()))?;
-
-        if existing_user.is_some() {
-            return Err(AppError::ValidationError("User already exists".to_string()));
-        }
-
-        // Hash password
-        let password_hash = hash(password, DEFAULT_COST)
-            .map_err(|e| AppError::InternalError(e.to_string()))?;
-
-        let now = Utc::now();
-
-        // Create user
-        let user = sqlx::query_as::<_, User>(
-            "INSERT INTO users (id, name, email, password_hash, created_at, updated_at) 
-             VALUES ($1, $2, $3, $4, $5, $6) 
-             RETURNING id, name, email, password_hash, created_at, updated_at"
-        )
-        .bind(Uuid::new_v4())
-        .bind(name)
-        .bind(email)
-        .bind(&password_hash)
-        .bind(now)
-        .bind(now)
         .fetch_one(&self.pool)
-        .await
-        .map_err(|e| AppError::InternalError(e.to_string()))?;
+        .await?;
 
+        info!("User registered successfully: {}", user.email);
         Ok(user)
     }
 
-    pub async fn login(&self, email: &str, password: &str) -> Result<(User, String), AppError> {
-        // Find user by email
-        let user = sqlx::query_as::<_, User>(
-            "SELECT id, name, email, password_hash, created_at, updated_at FROM users WHERE email = $1"
+    pub async fn login(&self, credentials: LoginUser) -> Result<(User, String), AppError> {
+        let user = sqlx::query_as!(
+            User,
+            r#"
+            SELECT id, email, password_hash, full_name, created_at, updated_at
+            FROM users
+            WHERE email = $1
+            "#,
+            credentials.email
         )
-        .bind(email)
         .fetch_optional(&self.pool)
-        .await
-        .map_err(|e| AppError::InternalError(e.to_string()))?
-        .ok_or_else(|| AppError::AuthError("Invalid credentials".to_string()))?;
+        .await?
+        .ok_or_else(|| AppError::AuthenticationError("Invalid credentials".to_string()))?;
 
-        // Verify password
-        if !bcrypt::verify(password, &user.password_hash)
-            .map_err(|e| AppError::InternalError(e.to_string()))? {
-            return Err(AppError::AuthError("Invalid credentials".to_string()));
+        if !verify(credentials.password, &user.password_hash)
+            .map_err(|e| AppError::AuthenticationError(e.to_string()))?
+        {
+            return Err(AppError::AuthenticationError("Invalid credentials".to_string()));
         }
 
-        // Generate JWT token
-        let token = self.generate_token(&user.id.to_string())?;
-
+        let token = self.generate_token(&user)?;
+        info!("User logged in successfully: {}", user.email);
         Ok((user, token))
     }
 
-    fn generate_token(&self, user_id: &str) -> Result<String, AppError> {
-        let expiration = Utc::now()
-            .checked_add_signed(Duration::hours(24))
+    fn generate_token(&self, user: &User) -> Result<String, AppError> {
+        let expiration = chrono::Utc::now()
+            .checked_add_signed(chrono::Duration::hours(24))
             .expect("valid timestamp")
             .timestamp() as usize;
 
         let claims = Claims {
-            sub: user_id.to_owned(),
+            sub: user.id.to_string(),
             exp: expiration,
         };
 
-        jsonwebtoken::encode(
-            &jsonwebtoken::Header::default(),
+        encode(
+            &Header::default(),
             &claims,
-            &jsonwebtoken::EncodingKey::from_secret(self.jwt_secret.as_bytes()),
+            &EncodingKey::from_secret(self.jwt_secret.as_bytes()),
         )
-        .map_err(|e| AppError::InternalError(e.to_string()))
+        .map_err(|e| AppError::AuthenticationError(e.to_string()))
     }
 
-    pub fn verify_token(&self, token: &str) -> Result<Claims, AppError> {
-        jsonwebtoken::decode::<Claims>(
+    pub fn verify_token(&self, token: &str) -> Result<Uuid, AppError> {
+        let token_data = decode::<Claims>(
             token,
-            &jsonwebtoken::DecodingKey::from_secret(self.jwt_secret.as_bytes()),
-            &jsonwebtoken::Validation::default(),
+            &DecodingKey::from_secret(self.jwt_secret.as_bytes()),
+            &Validation::default(),
         )
-        .map(|data| data.claims)
-        .map_err(|e| AppError::AuthError(e.to_string()))
+        .map_err(|e| AppError::AuthenticationError(e.to_string()))?;
+
+        Uuid::parse_str(&token_data.claims.sub)
+            .map_err(|e| AppError::AuthenticationError(e.to_string()))
     }
-}
-
-#[derive(Debug, Clone)]
-pub struct AuthUser(pub String);
-
-#[async_trait]
-impl<S> FromRequestParts<S> for AuthUser
-where
-    S: Send + Sync,
-{
-    type Rejection = StatusCode;
-
-    async fn from_request_parts(parts: &mut Parts, _state: &S) -> Result<Self, Self::Rejection> {
-        let auth_header = parts
-            .headers
-            .get("Authorization")
-            .and_then(|value| value.to_str().ok())
-            .ok_or(StatusCode::UNAUTHORIZED)?;
-
-        if !auth_header.starts_with("Bearer ") {
-            return Err(StatusCode::UNAUTHORIZED);
-        }
-
-        let token = auth_header.trim_start_matches("Bearer ");
-        let auth_service = parts
-            .extensions
-            .get::<Arc<AuthService>>()
-            .ok_or(StatusCode::INTERNAL_SERVER_ERROR)?;
-
-        let claims = auth_service.verify_token(token)
-            .map_err(|_| StatusCode::UNAUTHORIZED)?;
-        Ok(AuthUser(claims.sub))
-    }
-}
+} 
