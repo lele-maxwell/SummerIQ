@@ -1,7 +1,7 @@
 pub mod user;
-pub mod session;
-pub mod upload;
 pub mod file;
+pub mod upload;
+pub mod session;
 pub mod message;
 
 // Only export what's actually used

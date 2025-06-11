@@ -8,10 +8,9 @@ use validator::Validate;
 pub struct Message {
     pub id: Uuid,
     pub user_id: Uuid,
-    pub upload_id: Uuid,
-    pub question: String,
-    pub answer: String,
+    pub content: String,
     pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
 }
 
 #[derive(Debug, Deserialize, Validate)]

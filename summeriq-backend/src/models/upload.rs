@@ -1,18 +1,22 @@
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use sqlx::FromRow;
 use uuid::Uuid;
 
-#[derive(Debug, Serialize, Deserialize, FromRow)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Upload {
     pub id: Uuid,
     pub user_id: Uuid,
-    pub file_name: String,
-    pub minio_key: String,
-    pub uploaded_at: DateTime<Utc>,
+    pub filename: String,
+    pub original_filename: String,
+    pub mime_type: String,
+    pub size: i64,
+    pub created_at: Option<DateTime<Utc>>,
+    pub updated_at: Option<DateTime<Utc>>,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct CreateUpload {
-    pub file_name: String,
+    pub filename: String,
+    pub mime_type: String,
+    pub size: i64,
 }
