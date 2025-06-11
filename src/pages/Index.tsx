@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Header } from "@/components/layout/Header";
 import { AuthForm } from "@/components/auth/AuthForm";
 import { FileUpload } from "@/components/upload/FileUpload";
@@ -11,28 +11,36 @@ import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/componen
 import { BrainCogIcon, UploadCloudIcon, LayoutPanelLeftIcon, MessageSquareTextIcon } from "lucide-react";
 import { FileNode } from "@/components/explorer/types";
 
-const Index = () => {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+interface IndexProps {
+  isAuthenticated: boolean;
+  onLogin: () => void;
+  onLogout: () => void;
+}
+
+const Index = ({ isAuthenticated, onLogin, onLogout }: IndexProps) => {
   const [hasUploadedFile, setHasUploadedFile] = useState(false);
   const [uploadedFileName, setUploadedFileName] = useState("");
   const [selectedFile, setSelectedFile] = useState<FileNode | null>(null);
   const [selectedFilePath, setSelectedFilePath] = useState("");
+  const [loginDialogOpen, setLoginDialogOpen] = useState(false);
   
   const handleLogin = () => {
-    setIsAuthenticated(true);
+    onLogin();
+    setLoginDialogOpen(false);
   };
   
   const handleLogout = () => {
-    setIsAuthenticated(false);
+    onLogout();
     setHasUploadedFile(false);
     setUploadedFileName("");
     setSelectedFile(null);
     setSelectedFilePath("");
   };
   
-  const handleUploadComplete = (fileName: string) => {
+  const handleUploadComplete = (response: any) => {
     setHasUploadedFile(true);
-    setUploadedFileName(fileName);
+    const cleanFileName = response.filename.split('_').slice(1).join('_').replace('.zip', '');
+    setUploadedFileName(cleanFileName);
   };
   
   const handleFileSelect = (file: FileNode, path: string) => {
@@ -44,13 +52,19 @@ const Index = () => {
     <div className="min-h-screen flex flex-col bg-background">
       <Header 
         isAuthenticated={isAuthenticated} 
-        onLogin={() => {}} 
+        onLogin={() => setLoginDialogOpen(true)} 
         onLogout={handleLogout} 
       />
+
+      <Dialog open={loginDialogOpen} onOpenChange={setLoginDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <AuthForm onSuccess={handleLogin} />
+        </DialogContent>
+      </Dialog>
       
       {!isAuthenticated ? (
         <div className="flex-grow flex flex-col items-center justify-center p-6">
-          <HeroSection onLoginClick={handleLogin} />
+          <HeroSection onLoginClick={() => setLoginDialogOpen(true)} />
         </div>
       ) : !hasUploadedFile ? (
         <div className="container mx-auto py-12">
@@ -63,7 +77,7 @@ const Index = () => {
       ) : (
         <div className="flex-grow container mx-auto py-6">
           <div className="mb-6">
-            <h1 className="text-2xl font-bold">Project: {uploadedFileName.replace('.zip', '')}</h1>
+            <h1 className="text-2xl font-bold">Project: {uploadedFileName}</h1>
             <p className="text-muted-foreground">
               Uploaded {new Date().toLocaleDateString()} · Click on files to analyze
             </p>
@@ -91,7 +105,7 @@ const Index = () => {
             
             <ResizablePanel defaultSize={30} minSize={20}>
               <div className="h-full">
-                <ChatInterface projectName={uploadedFileName.replace('.zip', '')} />
+                <ChatInterface projectName={uploadedFileName} />
               </div>
             </ResizablePanel>
           </ResizablePanelGroup>
@@ -118,14 +132,7 @@ const HeroSection = ({ onLoginClick }: { onLoginClick: () => void }) => {
         </p>
         
         <div className="flex flex-wrap gap-4 justify-center pt-4">
-          <Dialog>
-            <DialogTrigger asChild>
-              <Button size="lg" className="text-base">Get Started</Button>
-            </DialogTrigger>
-            <DialogContent className="sm:max-w-md">
-              <AuthForm onSuccess={onLoginClick} />
-            </DialogContent>
-          </Dialog>
+          <Button size="lg" className="text-base" onClick={onLoginClick}>Get Started</Button>
           <Button size="lg" variant="outline" className="text-base">Learn More</Button>
         </div>
       </div>
