@@ -7,7 +7,7 @@ import { getApiUrl } from "@/lib/api";
 import { uploadProject } from "@/api/upload";
 
 interface FileUploadProps {
-  onUploadComplete: (filename: string) => void;
+  onUploadComplete: (response: any) => void;
 }
 
 export function FileUpload({ onUploadComplete }: FileUploadProps) {
@@ -65,7 +65,7 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
       }
 
       const result = await uploadProject(file, token);
-      onUploadComplete(result.fileName);
+      onUploadComplete(result);
     } catch (err) {
       console.error('Upload error:', err);
       setError(err instanceof Error ? err.message : 'Upload failed');

@@ -1,8 +1,8 @@
-
 import React from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { GitBranchIcon, BrainCogIcon, LogInIcon } from "lucide-react";
+import { GitBranchIcon, BrainCogIcon, LogInIcon, HomeIcon, InfoIcon, LayoutDashboardIcon, LogOutIcon } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface HeaderProps {
   isAuthenticated?: boolean;
@@ -15,6 +15,9 @@ export const Header: React.FC<HeaderProps> = ({
   onLogin,
   onLogout
 }) => {
+  const location = useLocation();
+  const isActive = (path: string) => location.pathname === path;
+
   return (
     <header className="border-b border-border bg-background/95 backdrop-blur sticky top-0 z-40">
       <div className="container flex h-16 items-center justify-between">
@@ -25,32 +28,64 @@ export const Header: React.FC<HeaderProps> = ({
           </Link>
         </div>
         
-        <nav className="hidden md:flex items-center gap-6">
-          <Link to="/" className="text-sm font-medium hover:text-primary transition-colors">
-            Home
+        <nav className="hidden md:flex items-center gap-4">
+          <Link 
+            to="/" 
+            className={cn(
+              "flex items-center gap-2 px-4 py-2 rounded-lg border-2 transition-all duration-200",
+              isActive("/")
+                ? "border-zipmind-400 bg-zipmind-400/10 text-zipmind-400"
+                : "border-border hover:border-zipmind-400/50 hover:bg-zipmind-400/5"
+            )}
+          >
+            <HomeIcon className="h-4 w-4" />
+            <span className="font-medium">Home</span>
           </Link>
+
           {isAuthenticated && (
-            <>
-              <Link to="/dashboard" className="text-sm font-medium hover:text-primary transition-colors">
-                Dashboard
-              </Link>
-              <Link to="/projects" className="text-sm font-medium hover:text-primary transition-colors">
-                Projects
-              </Link>
-            </>
+            <Link 
+              to="/dashboard" 
+              className={cn(
+                "flex items-center gap-2 px-4 py-2 rounded-lg border-2 transition-all duration-200",
+                isActive("/dashboard")
+                  ? "border-zipmind-400 bg-zipmind-400/10 text-zipmind-400"
+                  : "border-border hover:border-zipmind-400/50 hover:bg-zipmind-400/5"
+              )}
+            >
+              <LayoutDashboardIcon className="h-4 w-4" />
+              <span className="font-medium">Dashboard</span>
+            </Link>
           )}
-          <Link to="/about" className="text-sm font-medium hover:text-primary transition-colors">
-            About
+
+          <Link 
+            to="/about" 
+            className={cn(
+              "flex items-center gap-2 px-4 py-2 rounded-lg border-2 transition-all duration-200",
+              isActive("/about")
+                ? "border-zipmind-400 bg-zipmind-400/10 text-zipmind-400"
+                : "border-border hover:border-zipmind-400/50 hover:bg-zipmind-400/5"
+            )}
+          >
+            <InfoIcon className="h-4 w-4" />
+            <span className="font-medium">About</span>
           </Link>
         </nav>
 
         <div className="flex items-center gap-4">
           {isAuthenticated ? (
-            <Button variant="outline" onClick={onLogout}>
-              Log out
+            <Button 
+              variant="outline" 
+              onClick={onLogout}
+              className="flex items-center gap-2 hover:bg-red-50 hover:text-red-500 hover:border-red-200"
+            >
+              <LogOutIcon className="h-4 w-4" />
+              <span>Log out</span>
             </Button>
           ) : (
-            <Button onClick={onLogin} className="flex items-center gap-2">
+            <Button 
+              onClick={onLogin} 
+              className="flex items-center gap-2 bg-zipmind-400 hover:bg-zipmind-500"
+            >
               <LogInIcon className="h-4 w-4" />
               <span>Sign In</span>
             </Button>
