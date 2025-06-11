@@ -1,13 +1,9 @@
-use axum::{
-    extract::State,
-    routing::post,
-    Router,
-    Json,
-};
+use actix_web::{web, HttpResponse, Responder};
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
-use crate::services::{AuthService, AIService};
-use crate::services::auth::AuthUser;
+use tracing::{info, error};
+
+use crate::error::AppError;
+use crate::services::AIService;
 
 #[derive(Debug, Deserialize)]
 pub struct ChatRequest {
@@ -19,25 +15,14 @@ pub struct ChatResponse {
     pub response: String,
 }
 
-pub fn chat_router() -> Router<(Arc<AuthService>, Arc<crate::services::StorageService>, Arc<AIService>)> {
-    Router::new()
-        .route("/chat", post(chat))
-}
+pub async fn chat(
+    ai_service: web::Data<AIService>,
+    request: web::Json<ChatRequest>,
+) -> Result<impl Responder, AppError> {
+    let response = ai_service.analyze_text(&request.message)
+        .await
+        .map_err(|e| AppError::InternalServerError(e.to_string()))?;
 
-async fn chat(
-    State((_, _, ai_service)): State<(Arc<AuthService>, Arc<crate::services::StorageService>, Arc<AIService>)>,
-    _auth_user: AuthUser,
-    Json(request): Json<ChatRequest>,
-) -> Result<Json<ChatResponse>, axum::http::StatusCode> {
-    let messages = vec![
-        crate::services::ai::ChatMessage {
-            role: "user".to_string(),
-            content: request.message,
-        },
-    ];
-
-    let response = ai_service.chat(messages).await
-        .map_err(|_| axum::http::StatusCode::INTERNAL_SERVER_ERROR)?;
-
-    Ok(Json(ChatResponse { response }))
-}
+    info!("Chat response generated successfully");
+    Ok(HttpResponse::Ok().json(ChatResponse { response }))
+} 

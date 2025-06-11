@@ -1,109 +1,50 @@
-use axum::{
-    extract::{Multipart, State},
-    routing::post,
-    response::IntoResponse,
-    Json,
-    Router,
-    http::StatusCode,
-};
-use serde::{Deserialize, Serialize};
-use std::sync::Arc;
-use std::io::Write;
+use actix_multipart::Multipart;
+use actix_web::{web, HttpResponse, Responder};
+use futures::{StreamExt, TryStreamExt};
 use serde_json::json;
-use tracing::{info, error, debug, warn};
-use tokio::fs;
-use chrono::Utc;
-use tempfile::NamedTempFile;
+use tracing::{info, error};
+use uuid::Uuid;
 
 use crate::error::AppError;
-use crate::auth_middleware::auth_middleware;
-use crate::services::{AuthService, StorageService};
-use crate::services::auth::AuthUser;
-use crate::models::upload::Upload;
-
-type AppState = (Arc<AuthService>, Arc<StorageService>, Arc<crate::services::AIService>);
-
-#[derive(Debug, Serialize)]
-pub struct UploadResponse {
-    message: String,
-    filename: String,
-}
-
-pub fn upload_router(
-    auth_service: Arc<AuthService>,
-    storage_service: Arc<StorageService>,
-    ai_service: Arc<crate::services::AIService>,
-) -> Router<AppState> {
-    println!("DEBUG: Creating upload router");
-    Router::new()
-        .route("/upload", post(upload_file))
-        .route("/upload/test", post(test_upload))
-        .layer(axum::middleware::from_fn_with_state(
-            (auth_service, storage_service, ai_service),
-            auth_middleware,
-        ))
-}
-
-// Test endpoint that just returns OK
-async fn test_upload(
-    State((_auth_service, _storage_service, _ai_service)): State<AppState>,
-    auth_user: AuthUser,
-) -> Result<Json<serde_json::Value>, AppError> {
-    println!("DEBUG: Test upload endpoint reached");
-    println!("DEBUG: User: {}", auth_user.0);
-    Ok(Json(json!({
-        "status": "ok",
-        "message": "Test endpoint working",
-        "user_id": auth_user.0
-    })))
-}
+use crate::services::StorageService;
 
 pub async fn upload_file(
-    State((_auth_service, storage_service, _ai_service)): State<AppState>,
-    auth_user: AuthUser,
-    mut multipart: Multipart,
-) -> Result<impl IntoResponse, AppError> {
-    println!("DEBUG: ===== Starting file upload =====");
-    println!("DEBUG: User ID: {:?}", auth_user.0);
+    storage_service: web::Data<StorageService>,
+    mut payload: Multipart,
+) -> Result<impl Responder, AppError> {
+    let mut file_content = Vec::new();
+    let mut filename = None;
 
-    // Process multipart fields
-    while let Ok(Some(field)) = multipart.next_field().await {
-        let name = field.name().unwrap_or("unknown").to_string();
-        println!("DEBUG: Processing field: {}", name);
-        
-        let file_name = field.file_name().map(|s| s.to_string());
-        println!("DEBUG: Field file name: {:?}", file_name);
+    while let Some(mut field) = payload.try_next().await? {
+        let content_disposition = field.content_disposition();
+        filename = content_disposition.get_filename().map(|s| s.to_string());
 
-        if let Some(name) = file_name {
-            println!("DEBUG: Found file: {}", name);
-            match field.bytes().await {
-                Ok(data) => {
-                    println!("DEBUG: Read {} bytes", data.len());
-                    // Upload the file
-                    match storage_service.upload_file_bytes(data.to_vec(), &name).await {
-                        Ok(file_id) => {
-                            println!("DEBUG: File uploaded successfully with ID: {}", file_id);
-                            return Ok(Json(json!({
-                                "message": "File uploaded successfully",
-                                "file_id": file_id
-                            })));
-                        }
-                        Err(e) => {
-                            println!("DEBUG: Failed to upload file: {:?}", e);
-                            return Err(AppError::UploadError(format!("Failed to upload file: {}", e)));
-                        }
-                    }
-                }
-                Err(e) => {
-                    println!("DEBUG: Error reading file data: {:?}", e);
-                    return Err(AppError::UploadError(format!("Failed to read file data: {}", e)));
-                }
-            }
-        } else {
-            println!("DEBUG: Field has no file name, skipping");
+        while let Some(chunk) = field.next().await {
+            let data = chunk?;
+            file_content.extend_from_slice(&data);
         }
     }
 
-    println!("DEBUG: No file found in request");
-    Err(AppError::UploadError("No file found in request".to_string()))
+    let filename = filename.ok_or_else(|| AppError::UploadError("No filename provided".to_string()))?;
+    let file_id = Uuid::new_v4();
+    let final_filename = format!("{}_{}", file_id, filename);
+
+    storage_service.save_file(&file_content, &final_filename).await?;
+
+    info!("File uploaded successfully: {}", final_filename);
+    Ok(HttpResponse::Created().json(json!({
+        "message": "File uploaded successfully",
+        "file_id": file_id,
+        "filename": final_filename
+    })))
 }
+
+pub async fn get_file(
+    storage_service: web::Data<StorageService>,
+    file_id: web::Path<String>,
+) -> Result<impl Responder, AppError> {
+    let content = storage_service.read_file(&file_id).await?;
+    Ok(HttpResponse::Ok()
+        .content_type("application/octet-stream")
+        .body(content))
+} 
