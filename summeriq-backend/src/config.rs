@@ -6,6 +6,7 @@ use axum::{
 use serde_json::json;
 use thiserror::Error;
 use std::env;
+use std::path::PathBuf;
 
 #[derive(Error, Debug)]
 pub enum AppError {
@@ -55,9 +56,7 @@ pub struct Config {
     pub database_url: String,
     pub server_port: u16,
     pub jwt_secret: String,
-    pub minio_endpoint: String,
-    pub minio_access_key: String,
-    pub minio_secret_key: String,
+    pub upload_dir: PathBuf,
     pub openrouter_api_key: String,
 }
 
@@ -82,23 +81,9 @@ impl Config {
                 e
             })?;
             
-        let minio_endpoint = env::var("MINIO_ENDPOINT")
-            .map_err(|e| {
-                tracing::error!("Failed to load MINIO_ENDPOINT: {}", e);
-                e
-            })?;
-            
-        let minio_access_key = env::var("MINIO_ACCESS_KEY")
-            .map_err(|e| {
-                tracing::error!("Failed to load MINIO_ACCESS_KEY: {}", e);
-                e
-            })?;
-            
-        let minio_secret_key = env::var("MINIO_SECRET_KEY")
-            .map_err(|e| {
-                tracing::error!("Failed to load MINIO_SECRET_KEY: {}", e);
-                e
-            })?;
+        let upload_dir = env::var("UPLOAD_DIR")
+            .map(PathBuf::from)
+            .unwrap_or_else(|_| PathBuf::from("uploads"));
             
         let openrouter_api_key = env::var("OPENROUTER_API_KEY")
             .map_err(|e| {
@@ -112,9 +97,7 @@ impl Config {
             database_url,
             server_port,
             jwt_secret,
-            minio_endpoint,
-            minio_access_key,
-            minio_secret_key,
+            upload_dir,
             openrouter_api_key,
         })
     }
@@ -126,7 +109,7 @@ impl IntoResponse for Config {
         let body = serde_json::json!({
             "database_url": self.database_url,
             "server_port": self.server_port,
-            "minio_endpoint": self.minio_endpoint,
+            "upload_dir": self.upload_dir.to_string_lossy(),
         });
         (status, axum::Json(body)).into_response()
     }

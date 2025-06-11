@@ -1,20 +1,20 @@
 use axum::{
-    routing::{get, post},
-    Router,
-    middleware,
+    routing::Router,
 };
 use std::sync::Arc;
-use tower_http::cors::{CorsLayer, AllowOrigin};
+use tower_http::cors::{CorsLayer, AllowOrigin, Any};
 use tower_http::trace::TraceLayer;
-use aws_config::BehaviorVersion;
-use aws_sdk_s3::Client as S3Client;
 use sqlx::postgres::PgPoolOptions;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 use axum::http::Method;
 use axum::http::header::{AUTHORIZATION, ACCEPT, CONTENT_TYPE, HeaderName};
-use axum::Extension;
 use std::time::Duration;
 use axum::http::HeaderValue;
+use tracing::info;
+use dotenv::dotenv;
+use sqlx::PgPool;
+use axum::Extension;
+use std::path::PathBuf;
 
 mod config;
 mod error;
@@ -25,7 +25,9 @@ mod auth_middleware;
 
 use routes::auth::auth_router;
 use routes::upload::upload_router;
-use auth_middleware::auth_middleware;
+
+use crate::services::{AuthService, StorageService, AIService};
+use crate::routes::{auth, upload, chat};
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -33,7 +35,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("Current directory: {:?}", std::env::current_dir()?);
     
     // Load .env file
-    match dotenv::dotenv() {
+    match dotenv() {
         Ok(path) => println!("Loaded .env file from: {:?}", path),
         Err(e) => println!("Error loading .env file: {}", e),
     }
@@ -55,75 +57,49 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .connect(&config.database_url)
         .await?;
 
-    // Initialize MinIO client
-    let shared_config = aws_config::defaults(BehaviorVersion::latest())
-        .endpoint_url(config.minio_endpoint.trim_end_matches('/').to_string())
-        .region("us-east-1")
-        .credentials_provider(aws_sdk_s3::config::Credentials::new(
-            &config.minio_access_key,
-            &config.minio_secret_key,
-            None,
-            None,
-            "minio",
-        ))
-        .load()
-        .await;
-
-    let s3_config = aws_sdk_s3::config::Builder::from(&shared_config)
-        .force_path_style(true)
-        .build();
-
-    tracing::info!("Initializing MinIO client with endpoint: {}", config.minio_endpoint);
-    let s3_client = S3Client::from_conf(s3_config);
-
-    // Test MinIO connection
-    match s3_client.list_buckets().send().await {
-        Ok(buckets) => {
-            tracing::info!(
-                "Successfully connected to MinIO. Available buckets: {:?}",
-                buckets.buckets().iter()
-                    .filter_map(|b| b.name().map(String::from))
-                    .collect::<Vec<String>>()
-            );
-        }
-        Err(e) => {
-            tracing::error!("Failed to connect to MinIO: {}", e);
-        }
-    }
+    // Initialize upload directory
+    let upload_dir = std::env::current_dir()?.join("uploads");
+    tracing::info!("Using upload directory: {:?}", upload_dir);
 
     // Initialize services
     let auth_service = Arc::new(services::auth::AuthService::new(pool.clone(), config.jwt_secret));
-    let storage_service = Arc::new(services::storage::StorageService::new(s3_client, "uploaded-folders".to_string()));
+    let storage_service = Arc::new(services::storage::StorageService::new(upload_dir));
     let ai_service = Arc::new(services::ai::AIService::new(config.openrouter_api_key));
 
-    // Configure CORS
-    let allowed_origins = [
-        HeaderValue::from_static("http://localhost:8080"),
-        HeaderValue::from_static("http://localhost:3000"),
-    ];
+    // Build the router
+    let state = (Arc::clone(&auth_service), Arc::clone(&storage_service), Arc::clone(&ai_service));
+    
     let cors = CorsLayer::new()
-        .allow_origin(AllowOrigin::list(allowed_origins))
+        .allow_origin(vec![
+            "http://localhost:3000".parse::<HeaderValue>().unwrap(),
+            "http://127.0.0.1:3000".parse::<HeaderValue>().unwrap(),
+            "http://localhost:8080".parse::<HeaderValue>().unwrap(),
+            "http://127.0.0.1:8080".parse::<HeaderValue>().unwrap(),
+        ])
         .allow_methods([Method::GET, Method::POST, Method::PUT, Method::DELETE, Method::OPTIONS])
         .allow_headers([
             AUTHORIZATION,
             ACCEPT,
             CONTENT_TYPE,
             HeaderName::from_static("x-requested-with"),
-            HeaderName::from_static("content-type"),
-            HeaderName::from_static("content-length"),
+            HeaderName::from_static("origin"),
+            HeaderName::from_static("access-control-request-method"),
+            HeaderName::from_static("access-control-request-headers"),
         ])
-        .allow_credentials(true)
-        .max_age(Duration::from_secs(3600));
+        .expose_headers([
+            HeaderName::from_static("content-length"),
+            HeaderName::from_static("content-type"),
+        ])
+        .max_age(Duration::from_secs(3600))
+        .allow_credentials(true);
 
-    // Build the router
-    let state = (Arc::clone(&auth_service), Arc::clone(&storage_service), Arc::clone(&ai_service));
     let app = Router::new()
         .nest("/api", Router::new()
-            .merge(auth_router())
-            .merge(upload_router(
-                Arc::clone(&auth_service),
-                Arc::clone(&storage_service),
-                Arc::clone(&ai_service),
+            .merge(auth::auth_router())
+            .merge(upload::upload_router(
+                auth_service.clone(),
+                storage_service.clone(),
+                ai_service.clone(),
             ))
         )
         .layer(cors)

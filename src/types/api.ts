@@ -16,7 +16,7 @@ export interface API {
 }
 
 export const API: API = {
-  baseUrl: 'http://localhost:3000',
+  baseUrl: 'http://localhost:8080',
   // Auth
   register: '/api/auth/register',
   login: '/api/auth/login',

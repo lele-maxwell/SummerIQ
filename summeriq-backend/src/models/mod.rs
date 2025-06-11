@@ -4,7 +4,8 @@ pub mod upload;
 pub mod file;
 pub mod message;
 
-pub use user::*;
+// Only export what's actually used
+pub use user::User;
 pub use session::*;
 pub use upload::*;
 pub use file::*;

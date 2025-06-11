@@ -57,29 +57,28 @@ async fn register(
         return Err(AppError::ValidationError("Password must be at least 8 characters long".to_string()));
     }
 
-    let auth_user = auth_service.register(&credentials.email, &credentials.password)
+    let auth_user = auth_service.register(&credentials.name, &credentials.email, &credentials.password)
         .await
         .map_err(|e| AppError::InternalError(e.to_string()))?;
 
-    // Convert AuthUser to User
-    let user = User {
-        id: Uuid::parse_str(&auth_user.id)
-            .map_err(|_| AppError::InternalError("Invalid UUID format".to_string()))?,
-        name: credentials.name,
-        email: auth_user.email,
-        hashed_password: auth_user.password_hash,
-        created_at: Utc::now(),
-    };
-
-    Ok(Json(user))
+    Ok(Json(auth_user))
 }
 
 async fn login(
     State((auth_service, _, _)): State<(Arc<AuthService>, Arc<crate::services::StorageService>, Arc<crate::services::AIService>)>,
     Json(credentials): Json<LoginRequest>,
 ) -> Result<Json<LoginResponse>, AppError> {
-    let token = auth_service.authenticate(&credentials.email, &credentials.password)
+    println!("DEBUG: ===== Starting login handler =====");
+    println!("DEBUG: Attempting login for email: {}", credentials.email);
+    
+    let (user, token) = auth_service.login(&credentials.email, &credentials.password)
         .await
-        .map_err(|e| AppError::InternalError(e.to_string()))?;
+        .map_err(|e| {
+            println!("DEBUG: Login failed: {:?}", e);
+            e
+        })?;
+    
+    println!("DEBUG: Login successful for user: {}", user.id);
+    
     Ok(Json(LoginResponse { token }))
 }

@@ -2,7 +2,6 @@
 use std::env;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
-use std::sync::Arc;
 use crate::error::AppError;
 
 #[derive(Debug, Clone)]

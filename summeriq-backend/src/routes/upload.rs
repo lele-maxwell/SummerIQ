@@ -1,162 +1,109 @@
 use axum::{
     extract::{Multipart, State},
-    routing::{post, get},
-    body::Body,
+    routing::post,
     response::IntoResponse,
     Json,
     Router,
+    http::StatusCode,
 };
-use headers::{Authorization, authorization::Bearer};
+use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+use std::io::Write;
 use serde_json::json;
-use tracing::{info, error, debug};
+use tracing::{info, error, debug, warn};
 use tokio::fs;
-use std::path::PathBuf;
-use uuid::Uuid;
+use chrono::Utc;
+use tempfile::NamedTempFile;
 
 use crate::error::AppError;
 use crate::auth_middleware::auth_middleware;
 use crate::services::{AuthService, StorageService};
 use crate::services::auth::AuthUser;
-// AppState is assumed to be imported or defined elsewhere
+use crate::models::upload::Upload;
+
+type AppState = (Arc<AuthService>, Arc<StorageService>, Arc<crate::services::AIService>);
+
+#[derive(Debug, Serialize)]
+pub struct UploadResponse {
+    message: String,
+    filename: String,
+}
 
 pub fn upload_router(
     auth_service: Arc<AuthService>,
     storage_service: Arc<StorageService>,
     ai_service: Arc<crate::services::AIService>,
-) -> Router<(Arc<AuthService>, Arc<StorageService>, Arc<crate::services::AIService>)> {
+) -> Router<AppState> {
+    println!("DEBUG: Creating upload router");
     Router::new()
         .route("/upload", post(upload_file))
-        .route("/debug/buckets", get(list_buckets))
+        .route("/upload/test", post(test_upload))
         .layer(axum::middleware::from_fn_with_state(
             (auth_service, storage_service, ai_service),
             auth_middleware,
         ))
 }
 
-async fn list_buckets(
-    State((_, storage_service, _)): State<(Arc<AuthService>, Arc<StorageService>, Arc<crate::services::AIService>)>,
-) -> Json<Vec<String>> {
-    match storage_service.list_buckets().await {
-        Ok(buckets) => Json(buckets),
-        Err(e) => {
-            error!("Failed to list buckets: {:?}", e);
-            Json(Vec::new())
-        }
-    }
+// Test endpoint that just returns OK
+async fn test_upload(
+    State((_auth_service, _storage_service, _ai_service)): State<AppState>,
+    auth_user: AuthUser,
+) -> Result<Json<serde_json::Value>, AppError> {
+    println!("DEBUG: Test upload endpoint reached");
+    println!("DEBUG: User: {}", auth_user.0);
+    Ok(Json(json!({
+        "status": "ok",
+        "message": "Test endpoint working",
+        "user_id": auth_user.0
+    })))
 }
 
 pub async fn upload_file(
-    State((_, storage_service, _)): State<(Arc<AuthService>, Arc<StorageService>, Arc<crate::services::AIService>)>,
+    State((_auth_service, storage_service, _ai_service)): State<AppState>,
     auth_user: AuthUser,
     mut multipart: Multipart,
 ) -> Result<impl IntoResponse, AppError> {
-    println!("DEBUG: ===== Starting upload_file handler =====");
-    println!("DEBUG: Auth user: {:?}", auth_user);
-    println!("DEBUG: Storage service bucket: {}", storage_service.bucket_name());
-    
-    println!("DEBUG: Starting file upload for user: {}", auth_user.0);
-    info!("Starting file upload for user: {}", auth_user.0);
-    debug!("Received multipart request");
+    println!("DEBUG: ===== Starting file upload =====");
+    println!("DEBUG: User ID: {:?}", auth_user.0);
 
-    let mut file_data = None;
-    let mut file_name = None;
-    let mut content_type = None;
-
-    // Process multipart form data
-    println!("DEBUG: Starting to process multipart form data");
-    while let Some(field) = multipart.next_field().await.map_err(|e| {
-        println!("DEBUG: Failed to read multipart field: {:?}", e);
-        error!("Failed to read multipart field: {:?}", e);
-        AppError::BadRequest(format!("Failed to read multipart field: {}", e))
-    })? {
-        let name = field.name().unwrap_or("unnamed").to_string();
+    // Process multipart fields
+    while let Ok(Some(field)) = multipart.next_field().await {
+        let name = field.name().unwrap_or("unknown").to_string();
         println!("DEBUG: Processing field: {}", name);
-        debug!("Processing field: {}", name);
+        
+        let file_name = field.file_name().map(|s| s.to_string());
+        println!("DEBUG: Field file name: {:?}", file_name);
 
-        if name == "file" {
-            file_name = field.file_name().map(|f| f.to_string());
-            content_type = field.content_type().map(|ct| ct.to_string());
-            println!("DEBUG: File details - Name: {:?}, Content-Type: {:?}", file_name, content_type);
-            debug!("File details - Name: {:?}, Content-Type: {:?}", file_name, content_type);
-
-            let data = field.bytes().await.map_err(|e| {
-                println!("DEBUG: Failed to read field bytes: {:?}", e);
-                error!("Failed to read field bytes: {:?}", e);
-                AppError::BadRequest(format!("Failed to read uploaded data: {}", e))
-            })?;
-
-            println!("DEBUG: Read {} bytes of file data", data.len());
-            info!("Read {} bytes of file data", data.len());
-            file_data = Some(data);
+        if let Some(name) = file_name {
+            println!("DEBUG: Found file: {}", name);
+            match field.bytes().await {
+                Ok(data) => {
+                    println!("DEBUG: Read {} bytes", data.len());
+                    // Upload the file
+                    match storage_service.upload_file_bytes(data.to_vec(), &name).await {
+                        Ok(file_id) => {
+                            println!("DEBUG: File uploaded successfully with ID: {}", file_id);
+                            return Ok(Json(json!({
+                                "message": "File uploaded successfully",
+                                "file_id": file_id
+                            })));
+                        }
+                        Err(e) => {
+                            println!("DEBUG: Failed to upload file: {:?}", e);
+                            return Err(AppError::UploadError(format!("Failed to upload file: {}", e)));
+                        }
+                    }
+                }
+                Err(e) => {
+                    println!("DEBUG: Error reading file data: {:?}", e);
+                    return Err(AppError::UploadError(format!("Failed to read file data: {}", e)));
+                }
+            }
+        } else {
+            println!("DEBUG: Field has no file name, skipping");
         }
     }
 
-    // Validate file data
-    let file_data = file_data.ok_or_else(|| {
-        println!("DEBUG: No file data found in request");
-        error!("No file data found in request");
-        AppError::BadRequest("No file data found in request".to_string())
-    })?;
-
-    // Validate file name
-    let file_name = file_name.ok_or_else(|| {
-        println!("DEBUG: No filename provided");
-        error!("No filename provided");
-        AppError::BadRequest("No filename provided".to_string())
-    })?;
-
-    // Validate file extension
-    if !file_name.ends_with(".zip") {
-        println!("DEBUG: Invalid file type: {}", file_name);
-        error!("Invalid file type: {}", file_name);
-        return Err(AppError::BadRequest("Only .zip files are supported".to_string()));
-    }
-
-    // Create temporary file
-    let temp_dir = std::env::temp_dir();
-    let temp_file_path = temp_dir.join(&file_name);
-    println!("DEBUG: Creating temporary file at: {:?}", temp_file_path);
-    info!("Creating temporary file at: {:?}", temp_file_path);
-
-    // Write file data to temporary file
-    fs::write(&temp_file_path, &file_data).await.map_err(|e| {
-        println!("DEBUG: Failed to write temporary file: {:?}", e);
-        error!("Failed to write temporary file: {:?}", e);
-        AppError::InternalError(format!("Failed to process uploaded file: {}", e))
-    })?;
-
-    // Generate storage key
-    let storage_key = format!("{}/{}", auth_user.0, file_name);
-    println!("DEBUG: Uploading to MinIO with key: {}", storage_key);
-    info!("Uploading to MinIO with key: {}", storage_key);
-
-    // Upload to MinIO
-    let upload_result = storage_service.upload_file(&temp_file_path, &storage_key).await;
-
-    // Clean up temporary file regardless of upload result
-    if let Err(cleanup_err) = fs::remove_file(&temp_file_path).await {
-        println!("DEBUG: Failed to remove temporary file: {:?}", cleanup_err);
-        error!("Failed to remove temporary file: {:?}", cleanup_err);
-    }
-
-    // Handle upload result
-    match upload_result {
-        Ok(_) => {
-            println!("DEBUG: Successfully uploaded file to MinIO");
-            info!("Successfully uploaded file to MinIO");
-            
-            Ok(Json(json!({
-                "message": "File uploaded successfully",
-                "fileName": file_name,
-                "key": storage_key,
-                "contentType": content_type.unwrap_or_else(|| "application/zip".to_string())
-            })))
-        }
-        Err(e) => {
-            println!("DEBUG: Failed to upload to MinIO: {:?}", e);
-            error!("Failed to upload to MinIO: {:?}", e);
-            Err(AppError::StorageError(format!("Failed to upload file: {}", e)))
-        }
-    }
+    println!("DEBUG: No file found in request");
+    Err(AppError::UploadError("No file found in request".to_string()))
 }

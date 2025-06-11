@@ -60,12 +60,14 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
     try {
       const token = localStorage.getItem('token');
       if (!token) {
-        throw new Error('Not authenticated');
+        setError('Please log in to upload files');
+        return;
       }
 
       const result = await uploadProject(file, token);
       onUploadComplete(result.fileName);
     } catch (err) {
+      console.error('Upload error:', err);
       setError(err instanceof Error ? err.message : 'Upload failed');
     } finally {
       setUploading(false);

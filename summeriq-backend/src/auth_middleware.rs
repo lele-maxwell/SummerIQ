@@ -1,56 +1,68 @@
 use axum::{
-    extract::Request,
-    http::StatusCode,
-    middleware::Next,
-    response::Response,
     extract::State,
+    http::{Request, StatusCode},
+    middleware::Next,
+    response::{Response, IntoResponse},
 };
 use std::sync::Arc;
-use crate::services::{AuthService, StorageService, AIService};
+use tracing::{error, debug};
+use serde_json::json;
+
 use crate::error::AppError;
-use tracing::{info, error, debug, warn};
+use crate::services::auth::AuthService;
+use crate::services::auth::AuthUser;
+use crate::services::StorageService;
+use crate::services::AIService;
 
 pub async fn auth_middleware(
-    State(state): State<(Arc<AuthService>, Arc<StorageService>, Arc<AIService>)>,
-    req: Request,
+    State((auth_service, _storage_service, _ai_service)): State<(Arc<AuthService>, Arc<StorageService>, Arc<AIService>)>,
+    request: Request<axum::body::Body>,
     next: Next,
 ) -> Result<Response, AppError> {
-    let (auth_service, _, _) = state;
-    debug!("Processing request in auth middleware");
-    debug!("Request path: {}", req.uri().path());
-    debug!("Request method: {}", req.method());
-    
-    let auth_header = req
-        .headers()
-        .get("Authorization")
-        .and_then(|h| h.to_str().ok())
-        .ok_or_else(|| {
-            error!("Missing authorization header");
-            AppError::AuthError("Missing authorization header".into())
-        })?;
+    println!("DEBUG: ===== Request reached auth middleware =====");
+    println!("DEBUG: Request path: {}", request.uri().path());
+    println!("DEBUG: Request method: {}", request.method());
 
-    debug!("Found authorization header: {}", auth_header);
+    // Skip authentication for login and register endpoints
+    if request.uri().path() == "/api/auth/login" || request.uri().path() == "/api/auth/register" {
+        println!("DEBUG: Skipping authentication for login/register endpoint");
+        return Ok(next.run(request).await);
+    }
 
-    let token = auth_header
-        .strip_prefix("Bearer ")
-        .ok_or_else(|| {
-            error!("Invalid token format");
-            AppError::AuthError("Invalid token format".into())
-        })?;
+    // Get the authorization header
+    let auth_header = request.headers()
+        .get("authorization")
+        .and_then(|value| value.to_str().ok());
 
-    debug!("Extracted token, verifying...");
+    match auth_header {
+        Some(header) => {
+            println!("DEBUG: Found authorization header: {}", header);
+            if !header.starts_with("Bearer ") {
+                println!("DEBUG: Invalid authorization header format");
+                return Ok(StatusCode::UNAUTHORIZED.into_response());
+            }
 
-    let claims = auth_service.verify_token(token).map_err(|e| {
-        error!("Token verification failed: {}", e);
-        AppError::AuthError(format!("Invalid token: {}", e))
-    })?;
+            let token = &header[7..];
+            println!("DEBUG: Extracted token: {}", token);
 
-    debug!("Token verified successfully for user: {}", claims.sub);
-
-    // Add user_id to request extensions
-    let mut req = req;
-    req.extensions_mut().insert(claims.sub);
-
-    debug!("Proceeding to next middleware/handler");
-    Ok(next.run(req).await)
+            // Verify the token
+            match auth_service.verify_token(token) {
+                Ok(claims) => {
+                    println!("DEBUG: Token verified successfully for user: {:?}", claims.sub);
+                    // Add user to request extensions
+                    let mut request = request;
+                    request.extensions_mut().insert(AuthUser(claims.sub));
+                    Ok(next.run(request).await)
+                }
+                Err(e) => {
+                    println!("DEBUG: Token verification failed: {:?}", e);
+                    Ok(StatusCode::UNAUTHORIZED.into_response())
+                }
+            }
+        }
+        None => {
+            println!("DEBUG: No authorization header found");
+            Ok(StatusCode::UNAUTHORIZED.into_response())
+        }
+    }
 } 

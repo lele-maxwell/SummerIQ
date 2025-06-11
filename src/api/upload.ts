@@ -5,21 +5,30 @@ export async function uploadProject(
   token: string
 ): Promise<UploadResponse> {
   try {
+    if (!token) {
+      throw new Error('No authentication token provided');
+    }
+
     console.log('Starting upload with token:', token ? 'Token present' : 'No token');
     const formData = new FormData();
     formData.append('file', file);
     
     const url = `${API.baseUrl}${API.upload}`;
     console.log('Upload URL:', url);
+    console.log('File details:', {
+      name: file.name,
+      type: file.type,
+      size: file.size
+    });
     
     const response = await fetch(url, {
       method: 'POST',
       body: formData,
       headers: {
         'Authorization': `Bearer ${token}`
-        // Don't set Content-Type header - browser will set it automatically with boundary
       },
-      credentials: 'include' // Include credentials for CORS
+      credentials: 'include',
+      mode: 'cors'
     });
     
     console.log('Response status:', response.status);
@@ -28,7 +37,6 @@ export async function uploadProject(
     if (!response.ok) {
       let errorMessage = 'Upload failed';
       try {
-        // First try to get the response text to see what we're dealing with
         const responseText = await response.text();
         console.log('Error response text:', responseText);
         
