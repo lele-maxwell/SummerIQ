@@ -5,45 +5,37 @@ edition = "2021"
 
 [dependencies]
 # Web Framework
-axum = { version = "0.7", features = ["multipart"] }
-axum-extra = "0.9"
-headers = "0.4"
-multer = "2.1"
-tower = "0.4"
-tower-http = { version = "0.5", features = ["cors", "trace"] }
-hyper = { version = "1.0", features = ["full"] }
+actix-web = "4.4"
+actix-multipart = "0.6"
+actix-cors = "0.6"
+actix-files = "0.6"
 
 # Async Runtime
-tokio = { version = "1.36", features = ["full"] }
-async-trait = "0.1"
+tokio = { version = "1.0", features = ["full"] }
 
 # Database
-sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "postgres", "chrono", "uuid"] }
-uuid = { version = "1.7", features = ["v4", "serde"] }
+sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "postgres", "uuid", "chrono"] }
+uuid = { version = "1.0", features = ["v4", "serde"] }
 
 # Serialization
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 
-# Authentication
-jsonwebtoken = "9.2"
-bcrypt = "0.15"
-
 # File handling
 zip = "0.6"
-tempfile = "3.10"
-
-# HTTP Client
-reqwest = { version = "0.11", features = ["json"] }
+tempfile = "3.8"
 
 # Utilities
 chrono = { version = "0.4", features = ["serde"] }
+dotenv = "0.15"
+env_logger = "0.10"
+log = "0.4"
+futures = "0.3"
+mime_guess = "2.0"
+validator = { version = "0.16", features = ["derive"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
-dotenv = "0.15"
 thiserror = "1.0"
-anyhow = "1.0"
-validator = { version = "0.16", features = ["derive"] }
-
-# Added from the code block
-mime_guess = "2.0"
+bcrypt = "0.15"
+jsonwebtoken = "9.2"
+reqwest = { version = "0.11", features = ["json"] }
