@@ -81,7 +81,7 @@ export function AuthForm({ onSuccess }: { onSuccess: () => void }) {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          name: signupData.name,
+          full_name: signupData.name,
           email: signupData.email,
           password: signupData.password,
         }),
