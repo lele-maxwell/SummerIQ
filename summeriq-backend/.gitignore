@@ -1,5 +1,3 @@
-
-
 # Logs
 logs
 *.log
@@ -48,4 +46,9 @@ Thumbs.db
 
 # Temporary files
 *.tmp
-*.temp  
+*.temp
+
+# Storage
+/storage/
+/uploads/
+/extracted_*/  
