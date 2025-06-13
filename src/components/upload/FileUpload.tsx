@@ -72,6 +72,11 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
       if (result && result.upload) {
         console.log('Upload data:', result.upload);
         setUploadResult(result);
+        localStorage.setItem('uploadData', JSON.stringify({
+          file_id: result.file_id,
+          filename: result.filename,
+          project_name: file.name.replace(/\.(zip|sip)$/, '')
+        }));
         onUploadComplete(result);
       } else {
         console.error('Unexpected response format:', result);
