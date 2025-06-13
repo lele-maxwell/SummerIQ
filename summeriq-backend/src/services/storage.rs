@@ -16,8 +16,9 @@ pub struct FileNode {
     pub children: Option<Vec<FileNode>>,
 }
 
+#[derive(Clone)]
 pub struct StorageService {
-    upload_dir: String,
+    pub upload_dir: String,
 }
 
 impl StorageService {
@@ -41,6 +42,7 @@ impl StorageService {
 
     pub async fn extract_zip(&self, content: &[u8], extract_dir: &str) -> Result<(), crate::error::AppError> {
         let extract_path = Path::new(&self.upload_dir).join(extract_dir);
+        info!("Extracting ZIP to: {:?}", extract_path);
         fs::create_dir_all(&extract_path).await?;
 
         let cursor = Cursor::new(content);
@@ -48,21 +50,27 @@ impl StorageService {
 
         for i in 0..archive.len() {
             let mut file = archive.by_index(i)?;
-            let outpath = extract_path.join(file.name());
+            let file_name = file.name();
+            info!("Processing ZIP entry: {}", file_name);
+            
+            let outpath = extract_path.join(file_name);
+            info!("Extracting to: {:?}", outpath);
 
-            if file.name().ends_with('/') {
+            if file_name.ends_with('/') {
                 fs::create_dir_all(&outpath).await?;
+                info!("Created directory: {:?}", outpath);
             } else {
                 if let Some(parent) = outpath.parent() {
                     fs::create_dir_all(parent).await?;
                 }
                 let mut buffer = Vec::new();
                 file.read_to_end(&mut buffer)?;
-                fs::write(&outpath, buffer).await?;
+                fs::write(&outpath, &buffer).await?;
+                info!("Extracted file: {:?} ({} bytes)", outpath, buffer.len());
             }
         }
 
-        info!("ZIP file extracted to: {:?}", extract_path);
+        info!("ZIP file extraction completed: {:?}", extract_path);
         Ok(())
     }
 
@@ -126,5 +134,52 @@ impl StorageService {
         }
         
         Ok(root_nodes)
+    }
+
+    pub async fn read_file_content(&self, file_path: &str) -> Result<String, crate::error::AppError> {
+        info!("Attempting to read file: {}", file_path);
+        info!("Upload directory: {}", self.upload_dir);
+        
+        // Construct the full path
+        let full_path = Path::new(&self.upload_dir).join(file_path);
+        info!("Full path to check: {:?}", full_path);
+        info!("Full path exists: {}", full_path.exists());
+        
+        // List contents of the upload directory for debugging
+        if let Ok(entries) = fs::read_dir(&self.upload_dir).await {
+            info!("Contents of upload directory:");
+            let mut entries = entries;
+            while let Ok(Some(entry)) = entries.next_entry().await {
+                if let Ok(path) = entry.path().strip_prefix(&self.upload_dir) {
+                    info!("  - {}", path.display());
+                }
+            }
+        }
+        
+        // Check if the file exists
+        if !full_path.exists() {
+            error!("File not found at path: {:?}", full_path);
+            return Err(crate::error::AppError::FileNotFound(format!(
+                "File not found: {}",
+                file_path
+            )));
+        }
+        
+        // Read the file content
+        let content = fs::read_to_string(&full_path).await.map_err(|e| {
+            error!("Error reading file {}: {}", file_path, e);
+            crate::error::AppError::FileReadError(format!(
+                "Error reading file {}: {}",
+                file_path, e
+            ))
+        })?;
+        
+        info!("Successfully read file content ({} bytes)", content.len());
+        
+        // Log the first few characters of the content for debugging
+        let preview = content.chars().take(100).collect::<String>();
+        info!("Content preview: {}", preview);
+        
+        Ok(content)
     }
 } 
