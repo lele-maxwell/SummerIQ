@@ -4,6 +4,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BrainCogIcon, CodeIcon, FileTextIcon, BoxesIcon, AlertCircleIcon } from "lucide-react";
+import { FileContent } from "@/components/explorer/FileContent";
 
 interface AIAnalysisProps {
   filePath?: string;
@@ -39,6 +40,8 @@ interface AnalysisData {
 export function AIAnalysis({ filePath, fileName }: AIAnalysisProps) {
   const [loading, setLoading] = useState(false);
   const [analysisData, setAnalysisData] = useState<AnalysisData | null>(null);
+  const [fileContent, setFileContent] = useState<string | null>(null);
+  const [contentLoading, setContentLoading] = useState(false);
 
   useEffect(() => {
     if (filePath && fileName) {
@@ -61,6 +64,68 @@ export function AIAnalysis({ filePath, fileName }: AIAnalysisProps) {
       setAnalysisData(null);
     }
   }, [filePath, fileName]);
+
+  const fetchFileContent = async () => {
+    if (!filePath) return;
+    
+    setContentLoading(true);
+    try {
+      // Get the project name and UUID from the path
+      const pathParts = filePath.split('/').filter(Boolean); // Remove empty strings
+      if (pathParts.length < 2) {
+        throw new Error('Invalid file path');
+      }
+      
+      // Get the project name (first part) and the rest of the path
+      const projectName = pathParts[0];
+      const relativePath = pathParts.slice(1).join('/');
+      
+      // Get the UUID from localStorage
+      const uploadData = localStorage.getItem('uploadData');
+      if (!uploadData) {
+        throw new Error('No upload data found');
+      }
+      
+      const { file_id } = JSON.parse(uploadData);
+      if (!file_id) {
+        throw new Error('No file ID found in upload data');
+      }
+      
+      // Construct the full path with the UUID
+      const fullPath = `extracted_${file_id}/${relativePath}`;
+      
+      console.log('Project name:', projectName);
+      console.log('Relative path:', relativePath);
+      console.log('File ID:', file_id);
+      console.log('Full path:', fullPath);
+      
+      const response = await fetch(`http://127.0.0.1:8080/api/upload/content/${encodeURIComponent(fullPath)}`, {
+        headers: {
+          'Accept': 'text/plain',
+        },
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Server response:', errorText);
+        throw new Error(`Failed to fetch file content: ${response.status} ${response.statusText}`);
+      }
+      
+      const contentType = response.headers.get('content-type');
+      console.log('Response content type:', contentType);
+      
+      const content = await response.text();
+      console.log('Received content length:', content.length);
+      console.log('Content preview:', content.substring(0, 100));
+      
+      setFileContent(content);
+    } catch (error) {
+      console.error('Error fetching file content:', error);
+      setFileContent(null);
+    } finally {
+      setContentLoading(false);
+    }
+  };
 
   if (!filePath || !fileName) {
     return (
@@ -125,6 +190,7 @@ export function AIAnalysis({ filePath, fileName }: AIAnalysisProps) {
       <Tabs defaultValue="summary" className="w-full">
         <TabsList className="mb-4">
           <TabsTrigger value="summary">Summary</TabsTrigger>
+          <TabsTrigger value="contents" onClick={fetchFileContent}>File Contents</TabsTrigger>
           <TabsTrigger value="components">Components</TabsTrigger>
           <TabsTrigger value="dependencies">Dependencies</TabsTrigger>
           <TabsTrigger value="recommendations">Recommendations</TabsTrigger>
@@ -137,6 +203,26 @@ export function AIAnalysis({ filePath, fileName }: AIAnalysisProps) {
               <Badge key={tag} variant="outline">{tag}</Badge>
             ))}
           </div>
+        </TabsContent>
+        
+        <TabsContent value="contents">
+          {contentLoading ? (
+            <div className="space-y-2">
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-[90%]" />
+              <Skeleton className="h-4 w-[85%]" />
+            </div>
+          ) : fileContent ? (
+            <FileContent 
+              content={fileContent} 
+              language={fileName?.split('.').pop() || 'text'} 
+            />
+          ) : (
+            <div className="flex flex-col items-center justify-center h-40 text-center">
+              <FileTextIcon className="h-8 w-8 text-muted-foreground mb-2" />
+              <p className="text-muted-foreground">Click the File Contents tab to view the file content</p>
+            </div>
+          )}
         </TabsContent>
         
         <TabsContent value="components">
