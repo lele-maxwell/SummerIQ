@@ -1,13 +1,13 @@
 import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
-import { UploadCloudIcon, FileIcon, Loader2Icon, CheckIcon, XIcon } from "lucide-react";
+import { UploadCloudIcon, FileIcon, Loader2Icon, CheckIcon, XIcon, FolderIcon } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
-import { API } from "@/types/api";
+import { API, UploadResponse } from "@/types/api";
 import { getApiUrl } from "@/lib/api";
 import { uploadProject } from "@/api/upload";
 
 interface FileUploadProps {
-  onUploadComplete: (response: any) => void;
+  onUploadComplete: (response: UploadResponse) => void;
 }
 
 export function FileUpload({ onUploadComplete }: FileUploadProps) {
@@ -17,16 +17,17 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [uploadResult, setUploadResult] = useState<UploadResponse | null>(null);
 
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     setDragOver(false);
     
     const droppedFile = e.dataTransfer.files[0];
-    if (droppedFile && droppedFile.name.endsWith('.zip')) {
+    if (droppedFile && (droppedFile.name.endsWith('.zip') || droppedFile.name.endsWith('.sip'))) {
       setFile(droppedFile);
     } else {
-      setError('Please upload a ZIP file');
+      setError('Please upload a ZIP or SIP file');
     }
   };
 
@@ -42,11 +43,11 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
-    if (selectedFile && selectedFile.name.endsWith('.zip')) {
+    if (selectedFile && (selectedFile.name.endsWith('.zip') || selectedFile.name.endsWith('.sip'))) {
       setFile(selectedFile);
       setError(null);
     } else {
-      setError('Please upload a ZIP file');
+      setError('Please upload a ZIP or SIP file');
     }
   };
 
@@ -56,6 +57,7 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
     setUploading(true);
     setError(null);
     setProgress(0);
+    setUploadResult(null);
 
     try {
       const token = localStorage.getItem('token');
@@ -65,7 +67,16 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
       }
 
       const result = await uploadProject(file, token);
-      onUploadComplete(result);
+      console.log('Upload response:', result);
+      
+      if (result && result.upload) {
+        console.log('Upload data:', result.upload);
+        setUploadResult(result);
+        onUploadComplete(result);
+      } else {
+        console.error('Unexpected response format:', result);
+        setError('Received unexpected response format from server');
+      }
     } catch (err) {
       console.error('Upload error:', err);
       setError(err instanceof Error ? err.message : 'Upload failed');
@@ -111,7 +122,7 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
               type="file"
               ref={fileInputRef}
               onChange={handleFileChange}
-              accept=".zip"
+              accept=".zip,.sip"
               className="hidden"
             />
           </>
@@ -164,11 +175,42 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
                 </>
               )}
             </Button>
+
+            {uploadResult && (
+              <div className="mt-4 p-4 bg-muted rounded-lg">
+                <h4 className="font-medium mb-2 flex items-center">
+                  <FolderIcon className="h-4 w-4 mr-2" />
+                  Upload Results
+                </h4>
+                <div className="space-y-2">
+                  <p className="text-sm text-muted-foreground">
+                    File ID: {uploadResult.file_id}
+                  </p>
+                  {uploadResult.upload?.extracted_files && (
+                    <>
+                      <h5 className="font-medium text-sm mt-2">Extracted Files:</h5>
+                      <ul className="space-y-1">
+                        {uploadResult.upload.extracted_files.map((file: string, index: number) => (
+                          <li key={index} className="text-sm text-muted-foreground">
+                            {file}
+                          </li>
+                        ))}
+                      </ul>
+                    </>
+                  )}
+                  {uploadResult.upload?.extraction_path && (
+                    <p className="text-sm text-muted-foreground">
+                      Extraction Path: {uploadResult.upload.extraction_path}
+                    </p>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
       <p className="text-xs text-muted-foreground mt-2 text-center">
-        Maximum file size: 50MB. Supported format: .zip
+        Maximum file size: 50MB. Supported formats: .zip, .sip
       </p>
     </div>
   );

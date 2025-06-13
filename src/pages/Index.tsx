@@ -10,6 +10,8 @@ import { ChatInterface } from "@/components/chat/ChatInterface";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { BrainCogIcon, UploadCloudIcon, LayoutPanelLeftIcon, MessageSquareTextIcon } from "lucide-react";
 import { FileNode } from "@/components/explorer/types";
+import { UploadResponse } from "@/types/api";
+import { useNavigate } from "react-router-dom";
 
 interface IndexProps {
   isAuthenticated: boolean;
@@ -17,12 +19,21 @@ interface IndexProps {
   onLogout: () => void;
 }
 
+interface FileObject {
+  name: string;
+  path: string;
+  is_dir: boolean;
+  children?: FileObject[] | null;
+}
+
 const Index = ({ isAuthenticated, onLogin, onLogout }: IndexProps) => {
+  const navigate = useNavigate();
   const [hasUploadedFile, setHasUploadedFile] = useState(false);
   const [uploadedFileName, setUploadedFileName] = useState("");
   const [selectedFile, setSelectedFile] = useState<FileNode | null>(null);
   const [selectedFilePath, setSelectedFilePath] = useState("");
   const [loginDialogOpen, setLoginDialogOpen] = useState(false);
+  const [fileStructure, setFileStructure] = useState<FileNode | null>(null);
   
   const handleLogin = () => {
     onLogin();
@@ -35,12 +46,112 @@ const Index = ({ isAuthenticated, onLogin, onLogout }: IndexProps) => {
     setUploadedFileName("");
     setSelectedFile(null);
     setSelectedFilePath("");
+    setFileStructure(null);
   };
   
-  const handleUploadComplete = (response: any) => {
+  const convertToFileStructure = (extractedFiles: FileObject[]): FileNode => {
+    console.log('Converting extracted files:', extractedFiles);
+    
+    const root: FileNode = {
+      name: uploadedFileName,
+      type: "folder",
+      children: []
+    };
+
+    const processFile = (file: FileObject, parent: FileNode) => {
+      const node: FileNode = {
+        name: file.name,
+        type: file.is_dir ? "folder" : "file",
+        extension: !file.is_dir ? file.name.split('.').pop() : undefined,
+        children: file.is_dir ? [] : undefined
+      };
+
+      if (file.is_dir && file.children) {
+        file.children.forEach(child => processFile(child, node));
+      }
+
+      parent.children = parent.children || [];
+      parent.children.push(node);
+    };
+
+    // Process each file/directory
+    extractedFiles.forEach(file => {
+      processFile(file, root);
+    });
+
+    // Sort children: folders first, then files, both alphabetically
+    const sortNode = (node: FileNode) => {
+      if (node.children) {
+        node.children.sort((a, b) => {
+          // First sort by type (folders before files)
+          if (a.type !== b.type) {
+            return a.type === "folder" ? -1 : 1;
+          }
+          // Then sort alphabetically
+          return a.name.localeCompare(b.name);
+        });
+        
+        // Recursively sort children
+        node.children.forEach(sortNode);
+      }
+    };
+    
+    sortNode(root);
+    console.log('Final file structure:', JSON.stringify(root, null, 2));
+    return root;
+  };
+  
+  const handleUploadComplete = (response: UploadResponse) => {
+    console.log('Upload response:', response);
     setHasUploadedFile(true);
     const cleanFileName = response.filename.split('_').slice(1).join('_').replace('.zip', '');
+    console.log('Clean file name:', cleanFileName);
     setUploadedFileName(cleanFileName);
+    
+    if (response.upload?.extracted_files) {
+      console.log('Raw extracted files:', response.upload.extracted_files);
+      console.log('Number of files:', response.upload.extracted_files.length);
+      
+      // Log each file path separately
+      response.upload.extracted_files.forEach((file, index) => {
+        console.log(`File ${index + 1}:`, file);
+      });
+      
+      // Filter out any empty paths and normalize the paths
+      const validFiles = response.upload.extracted_files
+        .filter(file => file && file.path && file.path.trim() !== '')
+        .map(file => ({
+          ...file,
+          path: file.path.replace(/^\/+/, '').replace(/\/+$/, '')
+        }));
+      
+      console.log('Valid files:', validFiles);
+      
+      const structure = convertToFileStructure(validFiles);
+      // Ensure the root node has the correct name
+      structure.name = cleanFileName;
+      console.log('File structure created:', JSON.stringify(structure, null, 2));
+      setFileStructure(structure);
+      
+      // Store file information in localStorage
+      try {
+        localStorage.setItem('uploadedFileName', cleanFileName);
+        localStorage.setItem('fileStructure', JSON.stringify(structure));
+        console.log('Data stored in localStorage');
+        
+        // Verify the stored data
+        const storedStructure = localStorage.getItem('fileStructure');
+        console.log('Stored structure:', storedStructure);
+      } catch (error) {
+        console.error('Error storing data in localStorage:', error);
+      }
+      
+      // Navigate to dashboard after successful upload
+      console.log('Navigating to dashboard...');
+      navigate('/dashboard', { replace: true });
+    } else {
+      console.error('No extracted files in response:', response);
+    }
   };
   
   const handleFileSelect = (file: FileNode, path: string) => {
@@ -89,7 +200,7 @@ const Index = ({ isAuthenticated, onLogin, onLogout }: IndexProps) => {
           >
             <ResizablePanel defaultSize={20} minSize={15}>
               <div className="h-full">
-                <FileExplorer onFileSelect={handleFileSelect} />
+                <FileExplorer fileStructure={fileStructure} onFileSelect={handleFileSelect} />
               </div>
             </ResizablePanel>
             

@@ -1,11 +1,9 @@
-
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { DownloadIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { FileNode } from "./types";
 import { TreeNode } from "./TreeNode";
-import { demoFileStructure } from "./mockData";
 import { downloadFolder } from "./utils/fileUtils";
 
 interface FileExplorerProps {
@@ -13,8 +11,18 @@ interface FileExplorerProps {
   onFileSelect: (file: FileNode, path: string) => void;
 }
 
-export function FileExplorer({ fileStructure = demoFileStructure, onFileSelect }: FileExplorerProps) {
+export function FileExplorer({ fileStructure, onFileSelect }: FileExplorerProps) {
   const [selectedPath, setSelectedPath] = useState("");
+  
+  useEffect(() => {
+    console.log('FileExplorer received structure:', JSON.stringify(fileStructure, null, 2));
+    if (fileStructure?.children) {
+      console.log('Number of root items:', fileStructure.children.length);
+      fileStructure.children.forEach((child, index) => {
+        console.log(`Root item ${index + 1}:`, child);
+      });
+    }
+  }, [fileStructure]);
   
   const handleNodeSelect = (node: FileNode) => {
     // Find the path by traversing the tree
@@ -32,14 +40,30 @@ export function FileExplorer({ fileStructure = demoFileStructure, onFileSelect }
     
     const path = findPath([fileStructure], node.name, "");
     if (path) {
+      console.log('Selected path:', path);
       setSelectedPath(path);
       onFileSelect(node, path);
     }
   };
 
   const handleDownloadAll = () => {
-    downloadFolder(fileStructure);
+    if (fileStructure) {
+      downloadFolder(fileStructure);
+    }
   };
+
+  if (!fileStructure) {
+    return (
+      <div className="border rounded-md h-full">
+        <div className="bg-green-900 text-green-50 p-2 border-b text-sm font-medium">
+          <span>Project Files</span>
+        </div>
+        <div className="p-4 text-center text-muted-foreground">
+          No files available
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="border rounded-md h-full">

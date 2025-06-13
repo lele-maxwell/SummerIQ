@@ -5,16 +5,12 @@ import { GitBranchIcon, BrainCogIcon, LogInIcon, HomeIcon, InfoIcon, LayoutDashb
 import { cn } from "@/lib/utils";
 
 interface HeaderProps {
-  isAuthenticated?: boolean;
-  onLogin?: () => void;
-  onLogout?: () => void;
+  isAuthenticated: boolean;
+  onLogin: () => void;
+  onLogout: () => void;
 }
 
-export const Header: React.FC<HeaderProps> = ({ 
-  isAuthenticated = false,
-  onLogin,
-  onLogout
-}) => {
+export function Header({ isAuthenticated, onLogin, onLogout }: HeaderProps) {
   const location = useLocation();
   const isActive = (path: string) => location.pathname === path;
 
@@ -103,4 +99,4 @@ export const Header: React.FC<HeaderProps> = ({
       </div>
     </header>
   );
-};
+}
