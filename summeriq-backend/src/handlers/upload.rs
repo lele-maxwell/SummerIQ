@@ -4,11 +4,36 @@ use futures::{StreamExt, TryStreamExt};
 use serde_json::json;
 use tracing::{info, error};
 use uuid::Uuid;
+use crate::services::storage::FileNode;
+use serde_json::Value;
+use sqlx::types::Json;
+use serde::Serialize;
 
 use crate::config::Config;
 use crate::models::upload::{Upload, CreateUpload};
 use crate::services::StorageService;
 use crate::services::AuthService;
+
+#[derive(Serialize)]
+struct UploadResponse {
+    message: String,
+    file_id: Uuid,
+    filename: String,
+    upload: UploadRecord,
+}
+
+#[derive(Serialize)]
+struct UploadRecord {
+    id: Uuid,
+    user_id: Uuid,
+    filename: String,
+    original_filename: String,
+    mime_type: String,
+    size: i64,
+    extracted_files: Option<Value>,
+    created_at: Option<chrono::DateTime<chrono::Utc>>,
+    updated_at: Option<chrono::DateTime<chrono::Utc>>,
+}
 
 pub async fn upload_file(
     config: web::Data<Config>,
@@ -16,7 +41,7 @@ pub async fn upload_file(
     auth_service: web::Data<AuthService>,
     req: HttpRequest,
     mut payload: Multipart,
-) -> Result<impl Responder, crate::error::AppError> {
+) -> Result<HttpResponse, crate::error::AppError> {
     // Get user ID from auth token
     let auth_header = req
         .headers()
@@ -53,42 +78,59 @@ pub async fn upload_file(
     // Save file to storage
     storage_service.save_file(&file_content, &final_filename).await?;
 
-    // Create database record
-    let upload = CreateUpload {
-        filename: final_filename.clone(),
-        mime_type,
-        size: file_content.len() as i64,
+    // Extract ZIP file if it's a ZIP or SIP
+    let extracted_files = if mime_type == "application/zip" || filename.ends_with(".zip") || filename.ends_with(".sip") {
+        let extract_dir = format!("extracted_{}", file_id);
+        storage_service.extract_zip(&file_content, &extract_dir).await?;
+        let files = storage_service.list_files(&extract_dir).await?;
+        Some(serde_json::to_value(files).map_err(|e| crate::error::AppError::InternalServerError(e.to_string()))?)
+    } else {
+        None
     };
 
-    let upload = sqlx::query_as!(
-        Upload,
+    let extracted_files_json = extracted_files.map(Json);
+
+    let rec = sqlx::query!(
         r#"
-        INSERT INTO uploads (user_id, filename, original_filename, mime_type, size)
-        VALUES ($1, $2, $3, $4, $5)
-        RETURNING id, user_id, filename, original_filename, mime_type, size, created_at, updated_at
+        INSERT INTO uploads (user_id, filename, original_filename, mime_type, size, extracted_files)
+        VALUES ($1, $2, $3, $4, $5, $6)
+        RETURNING id, user_id, filename, original_filename, mime_type, size, extracted_files as "extracted_files: Json<Value>", created_at, updated_at
         "#,
         user_id,
-        upload.filename,
+        final_filename,
         filename,
-        upload.mime_type,
-        upload.size
+        mime_type,
+        file_content.len() as i64,
+        extracted_files_json.map(|v| v.0)
     )
     .fetch_one(&auth_service.pool)
     .await?;
 
+    let upload_record = UploadRecord {
+        id: rec.id,
+        user_id: rec.user_id,
+        filename: rec.filename,
+        original_filename: rec.original_filename,
+        mime_type: rec.mime_type,
+        size: rec.size,
+        extracted_files: rec.extracted_files.map(|v| v.0),
+        created_at: rec.created_at,
+        updated_at: rec.updated_at,
+    };
+
     info!("File uploaded successfully: {}", final_filename);
-    Ok(HttpResponse::Created().json(json!({
-        "message": "File uploaded successfully",
-        "file_id": file_id,
-        "filename": final_filename,
-        "upload": upload
-    })))
+    Ok(HttpResponse::Created().json(UploadResponse {
+        message: "File uploaded successfully".to_string(),
+        file_id,
+        filename: final_filename,
+        upload: upload_record,
+    }))
 }
 
 pub async fn get_file(
     storage_service: web::Data<StorageService>,
     file_id: web::Path<Uuid>,
-) -> Result<impl Responder, crate::error::AppError> {
+) -> Result<HttpResponse, crate::error::AppError> {
     let content = storage_service.read_file(&file_id.to_string()).await?;
     Ok(HttpResponse::Ok()
         .content_type("application/octet-stream")

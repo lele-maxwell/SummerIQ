@@ -3,6 +3,7 @@ use actix_web::{web, App, HttpServer};
 use dotenv::dotenv;
 use sqlx::postgres::PgPoolOptions;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
+use tracing_subscriber::filter::EnvFilter;
 
 mod config;
 mod db;
@@ -45,7 +46,7 @@ async fn main() -> std::io::Result<()> {
         pool.clone(),
         config.jwt_secret.clone(),
     ));
-    let storage_service = web::Data::new(services::StorageService::new(&config.storage_path));
+    let storage_service = web::Data::new(services::StorageService::new(config.storage_path.to_string_lossy().to_string()));
     let ai_service = web::Data::new(services::AIService::new(config.openrouter_api_key.clone()));
 
     // Start HTTP server
