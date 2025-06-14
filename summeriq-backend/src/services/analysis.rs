@@ -56,7 +56,7 @@ impl AnalysisService {
                         "content": prompt
                     }
                 ],
-                "max_tokens": 300
+                "max_tokens": 299
             }))
             .send()
             .await
