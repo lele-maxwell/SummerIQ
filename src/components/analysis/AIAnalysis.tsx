@@ -5,6 +5,8 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BrainCogIcon, CodeIcon, FileTextIcon, BoxesIcon, AlertCircleIcon } from "lucide-react";
 import { FileContent } from "@/components/explorer/FileContent";
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 
 interface AIAnalysisProps {
   filePath?: string;
@@ -46,6 +48,8 @@ export function AIAnalysis({ filePath, fileName }: AIAnalysisProps) {
   useEffect(() => {
     if (filePath && fileName) {
       setLoading(true);
+      // Fetch file content when a file is selected
+      fetchFileContent();
       // Simulate API call to analyze the file
       setTimeout(() => {
         // Mock analysis data based on file extension
@@ -62,6 +66,7 @@ export function AIAnalysis({ filePath, fileName }: AIAnalysisProps) {
       }, 1500);
     } else {
       setAnalysisData(null);
+      setFileContent(null);
     }
   }, [filePath, fileName]);
 
@@ -94,12 +99,18 @@ export function AIAnalysis({ filePath, fileName }: AIAnalysisProps) {
       // Construct the full path with the UUID
       const fullPath = `extracted_${file_id}/${relativePath}`;
       
-      console.log('Project name:', projectName);
-      console.log('Relative path:', relativePath);
-      console.log('File ID:', file_id);
-      console.log('Full path:', fullPath);
+      console.log('Debug info:');
+      console.log('- Original filePath:', filePath);
+      console.log('- Path parts:', pathParts);
+      console.log('- Project name:', projectName);
+      console.log('- Relative path:', relativePath);
+      console.log('- File ID:', file_id);
+      console.log('- Full path:', fullPath);
       
-      const response = await fetch(`http://127.0.0.1:8080/api/upload/content/${encodeURIComponent(fullPath)}`, {
+      const url = `http://127.0.0.1:8080/api/upload/content/${encodeURIComponent(fullPath)}`;
+      console.log('- Request URL:', url);
+      
+      const response = await fetch(url, {
         headers: {
           'Accept': 'text/plain',
         },
@@ -108,6 +119,8 @@ export function AIAnalysis({ filePath, fileName }: AIAnalysisProps) {
       if (!response.ok) {
         const errorText = await response.text();
         console.error('Server response:', errorText);
+        console.error('Response status:', response.status);
+        console.error('Response headers:', Object.fromEntries(response.headers.entries()));
         throw new Error(`Failed to fetch file content: ${response.status} ${response.statusText}`);
       }
       
@@ -205,7 +218,7 @@ export function AIAnalysis({ filePath, fileName }: AIAnalysisProps) {
           </div>
         </TabsContent>
         
-        <TabsContent value="contents">
+        <TabsContent value="contents" className="space-y-4">
           {contentLoading ? (
             <div className="space-y-2">
               <Skeleton className="h-4 w-full" />
@@ -213,14 +226,28 @@ export function AIAnalysis({ filePath, fileName }: AIAnalysisProps) {
               <Skeleton className="h-4 w-[85%]" />
             </div>
           ) : fileContent ? (
-            <FileContent 
-              content={fileContent} 
-              language={fileName?.split('.').pop() || 'text'} 
-            />
+            <div className="relative">
+              <SyntaxHighlighter
+                language={getLanguageFromFileName(fileName)}
+                style={vscDarkPlus}
+                customStyle={{
+                  margin: 0,
+                  borderRadius: '0.5rem',
+                  maxHeight: '600px',
+                }}
+                showLineNumbers
+                wrapLines
+              >
+                {fileContent}
+              </SyntaxHighlighter>
+              <div className="absolute top-2 right-2">
+                <Badge variant="secondary">Read Only</Badge>
+              </div>
+            </div>
           ) : (
-            <div className="flex flex-col items-center justify-center h-40 text-center">
-              <FileTextIcon className="h-8 w-8 text-muted-foreground mb-2" />
-              <p className="text-muted-foreground">Click the File Contents tab to view the file content</p>
+            <div className="text-center py-8 text-muted-foreground">
+              <FileTextIcon className="h-8 w-8 mx-auto mb-2 opacity-50" />
+              <p>No content available</p>
             </div>
           )}
         </TabsContent>
@@ -450,3 +477,38 @@ const defaultFileAnalysis: AnalysisData = {
     }
   ]
 };
+
+function getLanguageFromFileName(fileName: string): string {
+  const extension = fileName.split('.').pop()?.toLowerCase();
+  switch (extension) {
+    case 'rs':
+      return 'rust';
+    case 'py':
+      return 'python';
+    case 'js':
+    case 'jsx':
+      return 'javascript';
+    case 'ts':
+    case 'tsx':
+      return 'typescript';
+    case 'html':
+      return 'html';
+    case 'css':
+      return 'css';
+    case 'json':
+      return 'json';
+    case 'md':
+      return 'markdown';
+    case 'toml':
+      return 'toml';
+    case 'yaml':
+    case 'yml':
+      return 'yaml';
+    case 'sh':
+      return 'bash';
+    case 'sql':
+      return 'sql';
+    default:
+      return 'text';
+  }
+}
