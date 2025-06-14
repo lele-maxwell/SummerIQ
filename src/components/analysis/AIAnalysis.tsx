@@ -4,6 +4,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { BrainCogIcon, CodeIcon, FileTextIcon, BoxesIcon, AlertCircleIcon } from "lucide-react";
+import { FileContent } from "@/components/explorer/FileContent";
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 
 interface AIAnalysisProps {
   filePath?: string;
@@ -39,10 +42,14 @@ interface AnalysisData {
 export function AIAnalysis({ filePath, fileName }: AIAnalysisProps) {
   const [loading, setLoading] = useState(false);
   const [analysisData, setAnalysisData] = useState<AnalysisData | null>(null);
+  const [fileContent, setFileContent] = useState<string | null>(null);
+  const [contentLoading, setContentLoading] = useState(false);
 
   useEffect(() => {
     if (filePath && fileName) {
       setLoading(true);
+      // Fetch file content when a file is selected
+      fetchFileContent();
       // Simulate API call to analyze the file
       setTimeout(() => {
         // Mock analysis data based on file extension
@@ -59,8 +66,79 @@ export function AIAnalysis({ filePath, fileName }: AIAnalysisProps) {
       }, 1500);
     } else {
       setAnalysisData(null);
+      setFileContent(null);
     }
   }, [filePath, fileName]);
+
+  const fetchFileContent = async () => {
+    if (!filePath) return;
+    
+    setContentLoading(true);
+    try {
+      // Get the project name and UUID from the path
+      const pathParts = filePath.split('/').filter(Boolean); // Remove empty strings
+      if (pathParts.length < 2) {
+        throw new Error('Invalid file path');
+      }
+      
+      // Get the project name (first part) and the rest of the path
+      const projectName = pathParts[0];
+      const relativePath = pathParts.slice(1).join('/');
+      
+      // Get the UUID from localStorage
+      const uploadData = localStorage.getItem('uploadData');
+      if (!uploadData) {
+        throw new Error('No upload data found');
+      }
+      
+      const { file_id } = JSON.parse(uploadData);
+      if (!file_id) {
+        throw new Error('No file ID found in upload data');
+      }
+      
+      // Construct the full path with the UUID
+      const fullPath = `extracted_${file_id}/${relativePath}`;
+      
+      console.log('Debug info:');
+      console.log('- Original filePath:', filePath);
+      console.log('- Path parts:', pathParts);
+      console.log('- Project name:', projectName);
+      console.log('- Relative path:', relativePath);
+      console.log('- File ID:', file_id);
+      console.log('- Full path:', fullPath);
+      
+      const url = `http://127.0.0.1:8080/api/upload/content/${encodeURIComponent(fullPath)}`;
+      console.log('- Request URL:', url);
+      
+      const response = await fetch(url, {
+        headers: {
+          'Accept': 'text/plain',
+        },
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Server response:', errorText);
+        console.error('Response status:', response.status);
+        console.error('Response headers:', Object.fromEntries(response.headers.entries()));
+        throw new Error(`Failed to fetch file content: ${response.status} ${response.statusText}`);
+      }
+      
+      const contentType = response.headers.get('content-type');
+      console.log('Response content type:', contentType);
+      
+      const content = await response.text();
+      console.log('Received content length:', content.length);
+      console.log('Content preview:', content.substring(0, 100));
+      
+      setFileContent(content);
+    } catch (error) {
+      console.error('Error fetching file content:', error);
+      setFileContent(null);
+    } finally {
+      setContentLoading(false);
+    }
+  };
 
   if (!filePath || !fileName) {
     return (
@@ -125,6 +203,7 @@ export function AIAnalysis({ filePath, fileName }: AIAnalysisProps) {
       <Tabs defaultValue="summary" className="w-full">
         <TabsList className="mb-4">
           <TabsTrigger value="summary">Summary</TabsTrigger>
+          <TabsTrigger value="contents" onClick={fetchFileContent}>File Contents</TabsTrigger>
           <TabsTrigger value="components">Components</TabsTrigger>
           <TabsTrigger value="dependencies">Dependencies</TabsTrigger>
           <TabsTrigger value="recommendations">Recommendations</TabsTrigger>
@@ -137,6 +216,40 @@ export function AIAnalysis({ filePath, fileName }: AIAnalysisProps) {
               <Badge key={tag} variant="outline">{tag}</Badge>
             ))}
           </div>
+        </TabsContent>
+        
+        <TabsContent value="contents" className="space-y-4">
+          {contentLoading ? (
+            <div className="space-y-2">
+              <Skeleton className="h-4 w-full" />
+              <Skeleton className="h-4 w-[90%]" />
+              <Skeleton className="h-4 w-[85%]" />
+            </div>
+          ) : fileContent ? (
+            <div className="relative">
+              <SyntaxHighlighter
+                language={getLanguageFromFileName(fileName)}
+                style={vscDarkPlus}
+                customStyle={{
+                  margin: 0,
+                  borderRadius: '0.5rem',
+                  maxHeight: '600px',
+                }}
+                showLineNumbers
+                wrapLines
+              >
+                {fileContent}
+              </SyntaxHighlighter>
+              <div className="absolute top-2 right-2">
+                <Badge variant="secondary">Read Only</Badge>
+              </div>
+            </div>
+          ) : (
+            <div className="text-center py-8 text-muted-foreground">
+              <FileTextIcon className="h-8 w-8 mx-auto mb-2 opacity-50" />
+              <p>No content available</p>
+            </div>
+          )}
         </TabsContent>
         
         <TabsContent value="components">
@@ -364,3 +477,38 @@ const defaultFileAnalysis: AnalysisData = {
     }
   ]
 };
+
+function getLanguageFromFileName(fileName: string): string {
+  const extension = fileName.split('.').pop()?.toLowerCase();
+  switch (extension) {
+    case 'rs':
+      return 'rust';
+    case 'py':
+      return 'python';
+    case 'js':
+    case 'jsx':
+      return 'javascript';
+    case 'ts':
+    case 'tsx':
+      return 'typescript';
+    case 'html':
+      return 'html';
+    case 'css':
+      return 'css';
+    case 'json':
+      return 'json';
+    case 'md':
+      return 'markdown';
+    case 'toml':
+      return 'toml';
+    case 'yaml':
+    case 'yml':
+      return 'yaml';
+    case 'sh':
+      return 'bash';
+    case 'sql':
+      return 'sql';
+    default:
+      return 'text';
+  }
+}
