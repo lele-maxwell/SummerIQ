@@ -4,29 +4,32 @@ use std::env;
 use std::path::PathBuf;
 use tracing::{info, error};
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
     pub database_url: String,
     pub jwt_secret: String,
-    pub storage_path: PathBuf,
+    pub storage_path: String,
     pub openrouter_api_key: String,
     pub server_port: u16,
     pub upload_dir: String,
 }
 
 impl Config {
-    pub fn from_env() -> Result<Self, env::VarError> {
-        Ok(Self {
-            database_url: env::var("DATABASE_URL")?,
-            jwt_secret: env::var("JWT_SECRET")?,
-            storage_path: PathBuf::from(env::var("STORAGE_PATH").unwrap_or_else(|_| "storage".to_string())),
-            openrouter_api_key: env::var("OPENROUTER_API_KEY")?,
+    pub fn from_env() -> Self {
+        let current_dir = env::current_dir().expect("Failed to get current directory");
+        let storage_path = current_dir.join("storage").to_string_lossy().into_owned();
+        
+        Self {
+            database_url: env::var("DATABASE_URL").expect("DATABASE_URL must be set"),
+            jwt_secret: env::var("JWT_SECRET").expect("JWT_SECRET must be set"),
+            storage_path: storage_path.clone(),
+            openrouter_api_key: env::var("OPENROUTER_API_KEY").expect("OPENROUTER_API_KEY must be set"),
             server_port: env::var("SERVER_PORT")
                 .unwrap_or_else(|_| "8080".to_string())
                 .parse()
                 .expect("SERVER_PORT must be a number"),
-            upload_dir: env::var("UPLOAD_DIR").expect("UPLOAD_DIR must be set"),
-        })
+            upload_dir: storage_path,
+        }
     }
 }
 
@@ -37,9 +40,7 @@ pub struct ErrorResponse {
 
 impl ErrorResponse {
     pub fn new(error: impl Into<String>) -> Self {
-        Self {
-            error: error.into(),
-        }
+        Self { error: error.into() }
     }
 }
 

@@ -1,18 +1,10 @@
-use axum::{
-    routing::get,
-    Router,
-    Json,
-};
-use serde_json::json;
+use actix_web::{web, HttpResponse, Responder};
+use tracing::info;
 
-pub fn health_router() -> Router {
-    Router::new()
-        .route("/health", get(health_check))
-}
-
-async fn health_check() -> Json<serde_json::Value> {
-    Json(json!({
+pub async fn health_check() -> impl Responder {
+    info!("Health check requested");
+    HttpResponse::Ok().json(serde_json::json!({
         "status": "ok",
-        "version": env!("CARGO_PKG_VERSION")
+        "message": "Service is healthy"
     }))
 }

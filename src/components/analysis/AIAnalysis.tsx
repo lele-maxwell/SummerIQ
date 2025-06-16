@@ -181,16 +181,7 @@ export function AIAnalysis({ filePath, fileName }: AIAnalysisProps) {
       // Construct the full path with the UUID
       const fullPath = `extracted_${file_id}/${relativePath}`;
       
-      console.log('Debug info:');
-      console.log('- Original filePath:', filePath);
-      console.log('- Path parts:', pathParts);
-      console.log('- Project name:', projectName);
-      console.log('- Relative path:', relativePath);
-      console.log('- File ID:', file_id);
-      console.log('- Full path:', fullPath);
-      
       const url = `http://127.0.0.1:8080/api/upload/content/${encodeURIComponent(fullPath)}`;
-      console.log('- Request URL:', url);
       
       const response = await fetch(url, {
         headers: {
@@ -199,20 +190,10 @@ export function AIAnalysis({ filePath, fileName }: AIAnalysisProps) {
       });
       
       if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Server response:', errorText);
-        console.error('Response status:', response.status);
-        console.error('Response headers:', Object.fromEntries(response.headers.entries()));
         throw new Error(`Failed to fetch file content: ${response.status} ${response.statusText}`);
       }
       
-      const contentType = response.headers.get('content-type');
-      console.log('Response content type:', contentType);
-      
       const content = await response.text();
-      console.log('Received content length:', content.length);
-      console.log('Content preview:', content.substring(0, 100));
-      
       setFileContent(content);
     } catch (error) {
       console.error('Error fetching file content:', error);
