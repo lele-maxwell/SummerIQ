@@ -23,11 +23,11 @@ impl AIService {
         info!("Making AI API request with text length: {}", text.len());
         
         let request_body = json!({
-            "model": "anthropic/claude-3-opus-20240229",
+            "model": "deepseek-r1-distill-llama-70b",
             "messages": [
                 {
                     "role": "system",
-                    "content": "You are a code analysis expert. Your task is to analyze code files and provide clear, concise explanations. Focus on the main purpose and functionality of the code. When analyzing dependencies, list them in a clear, structured format."
+                    "content": "You are a code analysis expert. Your task is to analyze code files and provide clear, concise explanations. Focus on the main purpose and functionality of the code. When analyzing dependencies, list them in a clear, structured format. Provide direct answers without any thinking process, internal monologue, or meta-commentary."
                 },
                 {
                     "role": "user",
@@ -41,10 +41,8 @@ impl AIService {
         info!("Request body: {:?}", request_body);
 
         let response = self.client
-            .post("https://openrouter.ai/api/v1/chat/completions")
+            .post("https://api.groq.com/openai/v1/chat/completions")
             .header("Authorization", format!("Bearer {}", self.api_key))
-            .header("HTTP-Referer", "https://github.com/yourusername/summeriq")
-            .header("X-Title", "SummerIQ")
             .json(&request_body)
             .send()
             .await

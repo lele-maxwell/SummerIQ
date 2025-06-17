@@ -9,7 +9,7 @@ pub struct Config {
     pub database_url: String,
     pub jwt_secret: String,
     pub storage_path: String,
-    pub openrouter_api_key: String,
+    pub groq_api_key: String,
     pub server_port: u16,
     pub upload_dir: String,
 }
@@ -23,7 +23,7 @@ impl Config {
             database_url: env::var("DATABASE_URL").expect("DATABASE_URL must be set"),
             jwt_secret: env::var("JWT_SECRET").expect("JWT_SECRET must be set"),
             storage_path: storage_path.clone(),
-            openrouter_api_key: env::var("OPENROUTER_API_KEY").expect("OPENROUTER_API_KEY must be set"),
+            groq_api_key: env::var("GROQ_API_KEY").expect("GROQ_API_KEY must be set"),
             server_port: env::var("SERVER_PORT")
                 .unwrap_or_else(|_| "8080".to_string())
                 .parse()

@@ -45,7 +45,7 @@ impl AnalysisService {
             "Analyze this code file and provide a brief explanation of its main purpose and contents. \
              Focus on explaining what the file does in the context of the project. \
              Keep the explanation concise but informative. \
-             Format your response as a single paragraph.\n\
+             Format your response as a single paragraph without any thinking process or internal monologue.\n\
              \nFile content:\n{}",
             content
         );
@@ -53,11 +53,7 @@ impl AnalysisService {
         info!("Sending purpose analysis request");
         let file_purpose = self.ai_service
             .analyze_text(&purpose_prompt)
-            .await
-            .map_err(|e| {
-                error!("Purpose analysis failed: {}", e);
-                AppError::InternalServerError(format!("AI analysis error: {}", e))
-            })?;
+            .await?;
         info!("Received purpose analysis: {}", file_purpose);
 
         // Generate dependencies analysis
@@ -65,7 +61,8 @@ impl AnalysisService {
             "Analyze this code file and list all its dependencies (imports, requires, etc.). \
              If there are no dependencies, just say 'No dependencies found.' \
              Format each dependency on a new line, starting with a dash (-). \
-             For each dependency, include its purpose if it's not obvious from the name.\n\
+             For each dependency, include its purpose if it's not obvious from the name. \
+             Do not include any thinking process or internal monologue in your response.\n\
              \nFile content:\n{}",
             content
         );
@@ -73,11 +70,7 @@ impl AnalysisService {
         info!("Sending dependencies analysis request");
         let dependencies_text = self.ai_service
             .analyze_text(&deps_prompt)
-            .await
-            .map_err(|e| {
-                error!("Dependencies analysis failed: {}", e);
-                AppError::InternalServerError(format!("AI dependency analysis error: {}", e))
-            })?;
+            .await?;
         info!("Received dependencies analysis: {}", dependencies_text);
 
         // Parse dependencies into a vector
