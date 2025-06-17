@@ -20,7 +20,7 @@ use routes::upload;
 use routes::analysis;
 
 use config::Config;
-use services::{StorageService, AnalysisService, AIService};
+use services::{StorageService, AnalysisService, AIService, AuthService};
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
@@ -55,6 +55,7 @@ async fn main() -> std::io::Result<()> {
         storage_service,
     ));
     let ai_service = web::Data::new(AIService::new(config.openrouter_api_key.clone()));
+    let auth_service = web::Data::new(AuthService::new(pool.clone(), config.jwt_secret.clone()));
 
     // Start HTTP server
     let config_clone = config.clone();
@@ -73,12 +74,13 @@ async fn main() -> std::io::Result<()> {
             .app_data(storage_service_data.clone())
             .app_data(analysis_service.clone())
             .app_data(ai_service.clone())
+            .app_data(auth_service.clone())
             .service(
                 web::scope("/api")
                     .service(
                         web::scope("/auth")
-                            .route("/register", web::post().to(routes::auth::register))
-                            .route("/login", web::post().to(routes::auth::login))
+                            .route("/register", web::post().to(handlers::auth::register))
+                            .route("/login", web::post().to(handlers::auth::login))
                     )
                     .service(
                         web::scope("/upload")
