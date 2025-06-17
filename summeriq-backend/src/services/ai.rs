@@ -1,5 +1,5 @@
 use reqwest::Client;
-use serde_json::json;
+use serde_json::{json, Value};
 use tracing::{info, error, warn};
 
 use crate::error::AppError;
@@ -19,61 +19,67 @@ impl AIService {
         }
     }
 
-    pub async fn analyze_text(&self, text: &str) -> Result<String, AppError> {
-        info!("Making AI API request with text length: {}", text.len());
+    pub async fn analyze_text(&self, prompt: &str) -> Result<String, AppError> {
+        let client = reqwest::Client::new();
         
         let request_body = json!({
             "model": "deepseek-r1-distill-llama-70b",
             "messages": [
                 {
                     "role": "system",
-                    "content": "You are a code analysis expert. Your task is to analyze code files and provide clear, concise explanations. Focus on the main purpose and functionality of the code. When analyzing dependencies, list them in a clear, structured format. IMPORTANT: Do not include any thinking process, internal monologue, or meta-commentary in your response. Do not start with '<think>' or similar markers. Provide direct, factual answers only."
+                    "content": "You are a helpful AI assistant that analyzes code and provides clear, concise responses. IMPORTANT: Do not include any thinking process, internal monologue, or meta-commentary in your response. Do not start with '<think>' or similar markers. Provide direct, factual answers only."
                 },
                 {
                     "role": "user",
-                    "content": text
+                    "content": prompt
                 }
             ],
             "temperature": 0.7,
-            "max_tokens": 300
+            "max_tokens": 1000
         });
 
-        info!("Request body: {:?}", request_body);
-
-        let response = self.client
+        info!("Sending request to Groq API");
+        let response = client
             .post("https://api.groq.com/openai/v1/chat/completions")
             .header("Authorization", format!("Bearer {}", self.api_key))
+            .header("Content-Type", "application/json")
             .json(&request_body)
             .send()
             .await
-            .map_err(|e| AppError::InternalServerError(format!("Failed to send AI request: {}", e)))?;
+            .map_err(|e| {
+                error!("Failed to send request to Groq API: {}", e);
+                AppError::InternalServerError(format!("Failed to connect to AI service: {}", e))
+            })?;
 
         info!("Received response with status: {}", response.status());
-
-        if !response.status().is_success() {
-            let status = response.status();
+        let status = response.status();
+        
+        if !status.is_success() {
             let error_text = response.text().await.unwrap_or_else(|_| "Unknown error".to_string());
             error!("API error response: {}", error_text);
-            return Err(AppError::InternalServerError(format!(
-                "AI API error: {} - {}",
-                status,
-                error_text
-            )));
+            
+            let error_message = match status.as_u16() {
+                503 => "AI service is temporarily unavailable. Please try again in a few moments.".to_string(),
+                429 => "Rate limit exceeded. Please try again later.".to_string(),
+                401 => "Invalid API key. Please check your configuration.".to_string(),
+                _ => format!("AI service error: {} - {}", status, error_text)
+            };
+            
+            return Err(AppError::InternalServerError(error_message));
         }
 
-        let result = response.json::<serde_json::Value>().await
-            .map_err(|e| AppError::InternalServerError(format!("Failed to parse AI response: {}", e)))?;
-        info!("Full API Response: {:?}", result);
-        
-        let content = result["choices"][0]["message"]["content"]
+        let response_body = response.json::<Value>().await.map_err(|e| {
+            error!("Failed to parse API response: {}", e);
+            AppError::InternalServerError("Failed to parse AI service response".to_string())
+        })?;
+
+        let content = response_body["choices"][0]["message"]["content"]
             .as_str()
             .ok_or_else(|| {
-                error!("No content in API response: {:?}", result);
-                AppError::InternalServerError("No content in API response".to_string())
+                error!("Invalid response format from AI service");
+                AppError::InternalServerError("Invalid response from AI service".to_string())
             })?;
-            
-        info!("Extracted content: {}", content);
-        
+
         Ok(content.to_string())
     }
 } 
