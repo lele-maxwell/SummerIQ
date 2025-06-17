@@ -45,7 +45,9 @@ impl AnalysisService {
             "Analyze this code file and provide a brief explanation of its main purpose and contents. \
              Focus on explaining what the file does in the context of the project. \
              Keep the explanation concise but informative. \
-             Format your response as a single paragraph without any thinking process or internal monologue.\n\
+             IMPORTANT: Provide a direct, factual answer without any thinking process, internal monologue, or meta-commentary. \
+             Do not start with '<think>' or similar markers. \
+             Example format: 'This is a configuration file that...' or 'This file implements...'\n\
              \nFile content:\n{}",
             content
         );
@@ -62,7 +64,12 @@ impl AnalysisService {
              If there are no dependencies, just say 'No dependencies found.' \
              Format each dependency on a new line, starting with a dash (-). \
              For each dependency, include its purpose if it's not obvious from the name. \
-             Do not include any thinking process or internal monologue in your response.\n\
+             IMPORTANT: Provide a direct, factual answer without any thinking process, internal monologue, or meta-commentary. \
+             Do not start with '<think>' or similar markers. \
+             Example format:\n\
+             - react: Frontend UI library\n\
+             - express: Web server framework\n\
+             No dependencies found\n\
              \nFile content:\n{}",
             content
         );
