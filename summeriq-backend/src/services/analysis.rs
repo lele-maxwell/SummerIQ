@@ -74,18 +74,13 @@ impl AnalysisService {
         info!("Received dependencies analysis: {}", dependencies_text);
 
         // Parse dependencies into a vector
-        let dependencies = if dependencies_text.contains("No dependencies found") {
-            info!("No dependencies found in the file");
-            Vec::new()
-        } else {
-            let deps: Vec<String> = dependencies_text
-                .lines()
-                .filter(|line| !line.trim().is_empty())
-                .map(|s| s.trim().trim_start_matches('-').trim().to_string())
-                .collect();
-            info!("Found {} dependencies", deps.len());
-            deps
-        };
+        let dependencies: Vec<String> = dependencies_text
+            .lines()
+            .filter(|line| line.trim().starts_with('-'))
+            .map(|line| line.trim_start_matches('-').trim().to_string())
+            .collect();
+
+        info!("No dependencies found in the file");
 
         // Detect language from file extension
         let language = Path::new(file_path)
@@ -93,9 +88,9 @@ impl AnalysisService {
             .and_then(|ext| ext.to_str())
             .unwrap_or("unknown")
             .to_string();
+
         info!("Detected language: {}", language);
 
-        // Return structured analysis
         let analysis = FileAnalysis {
             language,
             file_purpose,
@@ -103,6 +98,7 @@ impl AnalysisService {
             analysis_time: Utc::now().to_rfc3339(),
             contents: content.to_string(),
         };
+
         info!("Analysis complete: {:?}", analysis);
         Ok(analysis)
     }

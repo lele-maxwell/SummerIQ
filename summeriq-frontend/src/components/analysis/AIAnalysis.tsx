@@ -63,7 +63,7 @@ export function AIAnalysis({ filePath, fileName }: AIAnalysisProps) {
     setAnalysisLoading(true);
     setAnalysisError(null);
     try {
-      const response = await fetch(`http://127.0.0.1:8080/api/analysis/${encodeURIComponent(filePath)}`, {
+      const response = await fetch(`http://127.0.0.1:8080/api/analysis/file/${encodeURIComponent(filePath)}`, {
         headers: {
           'Accept': 'application/json',
         },
