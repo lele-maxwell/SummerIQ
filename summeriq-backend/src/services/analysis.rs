@@ -7,13 +7,13 @@ use reqwest::Client;
 use serde_json::json;
 use std::fs;
 use crate::services::StorageService;
+use crate::services::ai::AIService;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct FileAnalysis {
     pub language: String,
-    pub components: Vec<String>,
+    pub file_purpose: String,
     pub dependencies: Vec<String>,
-    pub recommendations: Vec<String>,
     pub analysis_time: String,
     pub contents: String,
 }
@@ -22,36 +22,95 @@ pub struct AnalysisService {
     client: Client,
     api_key: String,
     storage_service: StorageService,
+    ai_service: AIService,
 }
 
 impl AnalysisService {
-    pub fn new(api_key: String, storage_service: StorageService) -> Self {
+    pub fn new(api_key: String, storage_service: StorageService, ai_service: AIService) -> Self {
+        info!("Initializing AnalysisService");
         Self {
             client: Client::new(),
             api_key,
             storage_service,
+            ai_service,
         }
     }
 
-    pub async fn analyze_file(&self, file_path: &str) -> Result<FileAnalysis, AppError> {
-        info!("Analyzing file: {}", file_path);
+    pub async fn analyze_file(&self, file_path: &str, content: &str) -> Result<FileAnalysis, AppError> {
+        info!("Starting file analysis for: {}", file_path);
+        info!("Content length: {} bytes", content.len());
         
-        // Read file content from storage
-        let content = self.storage_service.read_file(file_path).await
-            .map_err(|e| AppError::InternalServerError(format!("Failed to read file: {}", e)))?;
-        
-        // Convert content to string
-        let content_str = String::from_utf8(content)
-            .map_err(|e| AppError::InternalServerError(format!("Invalid UTF-8 content: {}", e)))?;
-        
-        // Return analysis with file contents
-        Ok(FileAnalysis {
-            language: "rust".to_string(),
-            components: vec!["main".to_string()],
-            dependencies: vec!["actix-web".to_string()],
-            recommendations: vec!["Add error handling".to_string()],
+        // Generate file purpose analysis
+        let purpose_prompt = format!(
+            "Analyze this code file and provide a brief explanation of its main purpose and contents. \
+             Focus on explaining what the file does in the context of the project. \
+             Keep the explanation concise but informative. \
+             Format your response as a single paragraph.\n\
+             \nFile content:\n{}",
+            content
+        );
+
+        info!("Sending purpose analysis request");
+        let file_purpose = self.ai_service
+            .analyze_text(&purpose_prompt)
+            .await
+            .map_err(|e| {
+                error!("Purpose analysis failed: {}", e);
+                AppError::InternalServerError(format!("AI analysis error: {}", e))
+            })?;
+        info!("Received purpose analysis: {}", file_purpose);
+
+        // Generate dependencies analysis
+        let deps_prompt = format!(
+            "Analyze this code file and list all its dependencies (imports, requires, etc.). \
+             If there are no dependencies, just say 'No dependencies found.' \
+             Format each dependency on a new line, starting with a dash (-). \
+             For each dependency, include its purpose if it's not obvious from the name.\n\
+             \nFile content:\n{}",
+            content
+        );
+
+        info!("Sending dependencies analysis request");
+        let dependencies_text = self.ai_service
+            .analyze_text(&deps_prompt)
+            .await
+            .map_err(|e| {
+                error!("Dependencies analysis failed: {}", e);
+                AppError::InternalServerError(format!("AI dependency analysis error: {}", e))
+            })?;
+        info!("Received dependencies analysis: {}", dependencies_text);
+
+        // Parse dependencies into a vector
+        let dependencies = if dependencies_text.contains("No dependencies found") {
+            info!("No dependencies found in the file");
+            Vec::new()
+        } else {
+            let deps: Vec<String> = dependencies_text
+                .lines()
+                .filter(|line| !line.trim().is_empty())
+                .map(|s| s.trim().trim_start_matches('-').trim().to_string())
+                .collect();
+            info!("Found {} dependencies", deps.len());
+            deps
+        };
+
+        // Detect language from file extension
+        let language = Path::new(file_path)
+            .extension()
+            .and_then(|ext| ext.to_str())
+            .unwrap_or("unknown")
+            .to_string();
+        info!("Detected language: {}", language);
+
+        // Return structured analysis
+        let analysis = FileAnalysis {
+            language,
+            file_purpose,
+            dependencies,
             analysis_time: Utc::now().to_rfc3339(),
-            contents: content_str,
-        })
+            contents: content.to_string(),
+        };
+        info!("Analysis complete: {:?}", analysis);
+        Ok(analysis)
     }
 } 

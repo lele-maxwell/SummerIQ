@@ -8,6 +8,7 @@ use serde::{Serialize, Deserialize};
 use std::sync::Arc;
 use std::future::Future;
 use uuid::Uuid;
+use glob;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct FileNode {
@@ -45,7 +46,32 @@ impl StorageService {
     }
 
     pub async fn get_file_id(&self, project_name: &str) -> Result<String, crate::error::AppError> {
-        Ok(project_name.to_string())
+        // First try to extract UUID from project name (format: UUID_project)
+        let parts: Vec<&str> = project_name.split('_').collect();
+        if parts.len() >= 2 {
+            // If the project name contains a UUID, return it
+            return Ok(parts[0].to_string());
+        }
+        
+        // If no UUID in project name, try to find it in the storage directory
+        let dir = self.upload_dir.join("extracted_*");
+        let pattern = dir.to_string_lossy();
+        let entries = glob::glob(&pattern)
+            .map_err(|e| crate::error::AppError::InternalServerError(format!("Failed to search for UUID: {}", e)))?;
+        
+        for entry in entries {
+            if let Ok(path) = entry {
+                if let Some(file_name) = path.file_name() {
+                    let name = file_name.to_string_lossy();
+                    if name.starts_with("extracted_") {
+                        let uuid = name.trim_start_matches("extracted_");
+                        return Ok(uuid.to_string());
+                    }
+                }
+            }
+        }
+        
+        Err(crate::error::AppError::BadRequest("No UUID found for project".to_string()))
     }
 
     pub async fn extract_zip(&self, content: &[u8], base_filename: &str) -> Result<Vec<String>, crate::error::AppError> {

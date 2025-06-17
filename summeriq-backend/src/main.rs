@@ -50,11 +50,15 @@ async fn main() -> std::io::Result<()> {
     // Initialize services
     let storage_service = StorageService::new(config.storage_path.clone());
     let storage_service_data = web::Data::new(storage_service.clone());
+    
+    let ai_service = AIService::new(config.openrouter_api_key.clone());
+    let ai_service_data = web::Data::new(ai_service.clone());
+    
     let analysis_service = web::Data::new(AnalysisService::new(
         config.openrouter_api_key.clone(),
-        storage_service,
+        storage_service.clone(),
+        ai_service.clone(),
     ));
-    let ai_service = web::Data::new(AIService::new(config.openrouter_api_key.clone()));
     let auth_service = web::Data::new(AuthService::new(pool.clone(), config.jwt_secret.clone()));
 
     // Start HTTP server
@@ -73,7 +77,7 @@ async fn main() -> std::io::Result<()> {
             .app_data(web::Data::new(pool.clone()))
             .app_data(storage_service_data.clone())
             .app_data(analysis_service.clone())
-            .app_data(ai_service.clone())
+            .app_data(ai_service_data.clone())
             .app_data(auth_service.clone())
             .service(
                 web::scope("/api")
