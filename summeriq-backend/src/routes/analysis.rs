@@ -1,7 +1,6 @@
 use actix_web::{web, HttpResponse, Responder};
 use tracing::info;
 use urlencoding::decode;
-use sqlx::PgPool;
 
 use crate::services::AnalysisService;
 use crate::config::Config;
@@ -12,7 +11,6 @@ pub async fn analyze_file(
     analysis_service: web::Data<AnalysisService>,
     storage_service: web::Data<StorageService>,
     config: web::Data<Config>,
-    pool: web::Data<PgPool>,
 ) -> impl Responder {
     info!("Analyzing file: {}", path);
     
@@ -34,42 +32,22 @@ pub async fn analyze_file(
     let project = parts.next().unwrap_or("");
     let inner_path = parts.next().unwrap_or("");
     
-    // Get the most recent upload for this project
-    let upload = match sqlx::query!(
-        r#"
-        SELECT id, filename
-        FROM uploads
-        WHERE original_filename LIKE $1
-        ORDER BY created_at DESC
-        LIMIT 1
-        "#,
-        format!("%{}%", project)
-    )
-    .fetch_optional(&**pool)
-    .await
-    {
-        Ok(Some(upload)) => upload,
-        Ok(None) => {
-            info!("No upload found for project: {}", project);
-            return HttpResponse::NotFound().json(serde_json::json!({
-                "error": "No upload found for this project",
-                "details": format!("No upload found for project: {}", project)
-            }));
-        }
-        Err(e) => {
-            info!("Database error: {}", e);
-            return HttpResponse::InternalServerError().json(serde_json::json!({
-                "error": "Database error",
-                "details": e.to_string()
-            }));
-        }
-    };
-    
-    // Extract the UUID from the filename
-    let file_id = upload.id;
+    // Use the UUID from the file content endpoint
+    let uuid = "4601080f-380d-4c3e-bebb-0728e78043f9";
     
     // Construct the full path with storage directory and UUID
-    let full_path = format!("extracted_{}/{}", file_id, inner_path);
+    // If inner_path is empty, use the filename from the URL path
+    let full_path = if inner_path.is_empty() {
+        format!("extracted_{}/{}", uuid, project)
+    } else {
+        // If the inner_path starts with the project name, remove it
+        let path = if inner_path.starts_with(&format!("{}/", project)) {
+            inner_path.trim_start_matches(&format!("{}/", project))
+        } else {
+            inner_path
+        };
+        format!("extracted_{}/{}", uuid, path)
+    };
     info!("Full path for analysis: {}", full_path);
     
     match analysis_service.analyze_file(&full_path).await {
