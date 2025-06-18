@@ -8,10 +8,11 @@ import { FileExplorer } from "@/components/explorer/FileExplorer";
 import { AIAnalysis } from "@/components/analysis/AIAnalysis";
 import { ChatInterface } from "@/components/chat/ChatInterface";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
-import { BrainCogIcon, UploadCloudIcon, LayoutPanelLeftIcon, MessageSquareTextIcon } from "lucide-react";
+import { BrainCogIcon, UploadCloudIcon, LayoutPanelLeftIcon, MessageSquareTextIcon, BookOpenIcon, GraduationCapIcon, CodeIcon } from "lucide-react";
 import { FileNode } from "@/components/explorer/types";
 import { UploadResponse } from "@/types/api";
 import { useNavigate } from "react-router-dom";
+import { motion } from "framer-motion";
 
 interface IndexProps {
   isAuthenticated: boolean;
@@ -49,55 +50,44 @@ const Index = ({ isAuthenticated, onLogin, onLogout }: IndexProps) => {
     setFileStructure(null);
   };
   
-  const convertToFileStructure = (extractedFiles: FileObject[]): FileNode => {
-    console.log('Converting extracted files:', extractedFiles);
-    
+  const convertToFileStructure = (extractedFiles: Array<{ path: string; content?: string }>): FileNode => {
     const root: FileNode = {
       name: uploadedFileName,
       type: "folder",
       children: []
     };
 
-    const processFile = (file: FileObject, parent: FileNode) => {
-      const node: FileNode = {
-        name: file.name,
-        type: file.is_dir ? "folder" : "file",
-        extension: !file.is_dir ? file.name.split('.').pop() : undefined,
-        children: file.is_dir ? [] : undefined
-      };
+    const processFile = (filePath: string, parent: FileNode) => {
+      const parts = filePath.split('/');
+      const fileName = parts.pop() || '';
+      const currentPath = parts.join('/');
 
-      if (file.is_dir && file.children) {
-        file.children.forEach(child => processFile(child, node));
+      let currentNode = parent.children?.find(child => child.name === parts[0]);
+      if (!currentNode && parts.length > 0) {
+        currentNode = {
+          name: parts[0],
+          type: "folder",
+          children: []
+        };
+        parent.children?.push(currentNode);
       }
 
-      parent.children = parent.children || [];
-      parent.children.push(node);
+      if (parts.length > 1) {
+        processFile(parts.slice(1).join('/') + '/' + fileName, currentNode || parent);
+      } else if (fileName) {
+        const extension = fileName.split('.').pop();
+        parent.children?.push({
+          name: fileName,
+          type: "file",
+          extension
+        });
+      }
     };
 
-    // Process each file/directory
     extractedFiles.forEach(file => {
-      processFile(file, root);
+      processFile(file.path, root);
     });
 
-    // Sort children: folders first, then files, both alphabetically
-    const sortNode = (node: FileNode) => {
-      if (node.children) {
-        node.children.sort((a, b) => {
-          // First sort by type (folders before files)
-          if (a.type !== b.type) {
-            return a.type === "folder" ? -1 : 1;
-          }
-          // Then sort alphabetically
-          return a.name.localeCompare(b.name);
-        });
-        
-        // Recursively sort children
-        node.children.forEach(sortNode);
-      }
-    };
-    
-    sortNode(root);
-    console.log('Final file structure:', JSON.stringify(root, null, 2));
     return root;
   };
   
@@ -229,44 +219,94 @@ const Index = ({ isAuthenticated, onLogin, onLogout }: IndexProps) => {
 const HeroSection = ({ onLoginClick }: { onLoginClick: () => void }) => {
   return (
     <>
-      <div className="w-full max-w-5xl mx-auto text-center space-y-6">
-        <div className="inline-flex items-center justify-center p-2 bg-secondary rounded-full mb-4">
+      <motion.div 
+        className="w-full max-w-5xl mx-auto text-center space-y-6"
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5 }}
+      >
+        <motion.div 
+          className="inline-flex items-center justify-center p-2 bg-secondary rounded-full mb-4"
+          initial={{ scale: 0 }}
+          animate={{ scale: 1 }}
+          transition={{ delay: 0.2, type: "spring", stiffness: 200 }}
+        >
           <BrainCogIcon className="h-8 w-8 text-zipmind-400" />
-        </div>
-        <h1 className="text-4xl md:text-6xl font-bold leading-tight">
-          Understand code projects with 
-          <span className="bg-gradient-to-r from-zipmind-400 to-zipmind-600 text-transparent bg-clip-text"> AI-powered insights</span>
-        </h1>
-        <p className="text-xl text-muted-foreground max-w-3xl mx-auto">
-          Upload a zipped codebase and let ZipMind analyze it. Get detailed summaries, understand structure, 
-          and chat with your code to find answers quickly.
-        </p>
+        </motion.div>
+        <motion.h1 
+          className="text-4xl md:text-6xl font-bold leading-tight"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3, duration: 0.5 }}
+        >
+          Master project architecture with 
+          <span className="bg-gradient-to-r from-zipmind-400 to-zipmind-600 text-transparent bg-clip-text"> AI-powered learning</span>
+        </motion.h1>
+        <motion.p 
+          className="text-xl text-muted-foreground max-w-3xl mx-auto"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.4, duration: 0.5 }}
+        >
+          Upload a project and let ZipMind guide you through its architecture. Learn modern technologies, 
+          understand best practices, and contribute with confidence.
+        </motion.p>
         
-        <div className="flex flex-wrap gap-4 justify-center pt-4">
-          <Button size="lg" className="text-base" onClick={onLoginClick}>Get Started</Button>
+        <motion.div 
+          className="flex flex-wrap gap-4 justify-center pt-4"
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.5, duration: 0.5 }}
+        >
+          <Button size="lg" className="text-base bg-zipmind-500 hover:bg-zipmind-600" onClick={onLoginClick}>
+            Get Started
+          </Button>
           <Button size="lg" variant="outline" className="text-base">Learn More</Button>
-        </div>
-      </div>
+        </motion.div>
+      </motion.div>
       
-      <div className="w-full mt-16">
+      <motion.div 
+        className="w-full mt-16"
+        initial={{ opacity: 0, y: 40 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.6, duration: 0.5 }}
+      >
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-5xl mx-auto">
-          <FeatureCard
-            icon={<UploadCloudIcon className="h-8 w-8 text-zipmind-400" />}
-            title="Upload Projects"
-            description="Simply drag & drop your zipped project files for instant analysis."
-          />
-          <FeatureCard
-            icon={<LayoutPanelLeftIcon className="h-8 w-8 text-zipmind-400" />}
-            title="Get Insights"
-            description="Receive detailed summaries and structure analysis of each file."
-          />
-          <FeatureCard
-            icon={<MessageSquareTextIcon className="h-8 w-8 text-zipmind-400" />}
-            title="Ask Questions"
-            description="Chat with your code to quickly find answers about any file or function."
-          />
+          <motion.div
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.7, duration: 0.5 }}
+          >
+            <FeatureCard
+              icon={<BookOpenIcon className="h-8 w-8 text-zipmind-400" />}
+              title="Project Understanding"
+              description="Learn how different parts of a project connect and work together through AI-generated documentation."
+            />
+          </motion.div>
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.8, duration: 0.5 }}
+          >
+            <FeatureCard
+              icon={<GraduationCapIcon className="h-8 w-8 text-zipmind-400" />}
+              title="Learning Platform"
+              description="Discover modern technologies and best practices used in real-world projects through interactive learning."
+            />
+          </motion.div>
+          <motion.div
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.9, duration: 0.5 }}
+          >
+            <FeatureCard
+              icon={<CodeIcon className="h-8 w-8 text-zipmind-400" />}
+              title="Contribute Confidently"
+              description="Understand where and how to add your code with AI-powered guidance and best practice suggestions."
+            />
+          </motion.div>
         </div>
-      </div>
+      </motion.div>
     </>
   );
 };
@@ -281,11 +321,15 @@ const FeatureCard = ({
   description: string;
 }) => {
   return (
-    <div className="bg-card border rounded-xl p-6">
+    <motion.div 
+      className="bg-card border rounded-xl p-6 h-full hover:shadow-lg transition-shadow duration-300"
+      whileHover={{ scale: 1.02 }}
+      transition={{ type: "spring", stiffness: 300 }}
+    >
       <div className="bg-secondary inline-flex rounded-lg p-3 mb-4">{icon}</div>
       <h3 className="text-xl font-semibold mb-2">{title}</h3>
       <p className="text-muted-foreground">{description}</p>
-    </div>
+    </motion.div>
   );
 };
 
