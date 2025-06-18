@@ -33,16 +33,16 @@ export const API: API = {
 };
 
 export interface UploadResponse {
-  file_id: string;
   filename: string;
-  message: string;
-  upload: {
-    id: string;
-    filename: string;
-    mime_type: string;
-    created_at: string;
-    extracted_files: string[];
-    extraction_path?: string;
+  extracted_files: Array<{
+    path: string;
+    content?: string;
+  }>;
+  upload?: {
+    extracted_files: Array<{
+      path: string;
+      content?: string;
+    }>;
   };
 }
 

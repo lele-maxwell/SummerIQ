@@ -1,7 +1,7 @@
 import React from "react";
 import { Link, useLocation } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { GitBranchIcon, BrainCogIcon, LogInIcon, HomeIcon, InfoIcon, LayoutDashboardIcon, LogOutIcon } from "lucide-react";
+import { GitBranchIcon, LogInIcon, HomeIcon, InfoIcon, LayoutDashboardIcon, LogOutIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface HeaderProps {
@@ -16,11 +16,21 @@ export function Header({ isAuthenticated, onLogin, onLogout }: HeaderProps) {
 
   return (
     <header className="border-b border-border bg-background/95 backdrop-blur sticky top-0 z-40">
-      <div className="container flex h-16 items-center justify-between">
+      <div className="container flex h-24 items-center justify-between">
         <div className="flex items-center gap-2">
           <Link to="/" className="flex items-center gap-2 transition-opacity hover:opacity-80">
-            <BrainCogIcon className="h-8 w-8 text-zipmind-400" />
-            <span className="text-xl font-semibold">ZipMind</span>
+            <div className="relative h-20 w-20">
+              <img 
+                src="ChatGPT Image Jun 18, 2025, 10_12_16 AM.png" 
+                alt="ZipMind Logo" 
+                className="absolute inset-0 h-full w-full object-contain"
+                style={{
+                  filter: 'brightness(1.2) contrast(1.2)',
+                  mixBlendMode: 'multiply'
+                }}
+              />
+            </div>
+            <span className="text-2xl font-semibold">ZipMind</span>
           </Link>
         </div>
         

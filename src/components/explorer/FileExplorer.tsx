@@ -7,11 +7,11 @@ import { TreeNode } from "./TreeNode";
 import { downloadFolder } from "./utils/fileUtils";
 
 interface FileExplorerProps {
-  fileStructure?: FileNode;
+  fileStructure: FileNode | null;
   onFileSelect: (file: FileNode, path: string) => void;
 }
 
-export function FileExplorer({ fileStructure, onFileSelect }: FileExplorerProps) {
+export const FileExplorer = ({ fileStructure, onFileSelect }: FileExplorerProps) => {
   const [selectedPath, setSelectedPath] = useState("");
   
   useEffect(() => {
@@ -53,16 +53,7 @@ export function FileExplorer({ fileStructure, onFileSelect }: FileExplorerProps)
   };
 
   if (!fileStructure) {
-    return (
-      <div className="border rounded-md h-full">
-        <div className="bg-green-900 text-green-50 p-2 border-b text-sm font-medium">
-          <span>Project Files</span>
-        </div>
-        <div className="p-4 text-center text-muted-foreground">
-          No files available
-        </div>
-      </div>
-    );
+    return null;
   }
 
   return (
