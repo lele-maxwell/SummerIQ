@@ -1,7 +1,6 @@
-
 export type FileNode = {
   name: string;
-  type: "file" | "folder";
-  extension?: string;
-  children?: FileNode[];
+  path: string;
+  is_dir: boolean;
+  children?: FileNode[] | null;
 };

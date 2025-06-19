@@ -50,97 +50,30 @@ const Index = ({ isAuthenticated, onLogin, onLogout }: IndexProps) => {
     setFileStructure(null);
   };
   
-  const convertToFileStructure = (extractedFiles: Array<{ path: string; content?: string }>): FileNode => {
-    const root: FileNode = {
-      name: uploadedFileName,
-      type: "folder",
-      children: []
-    };
-
-    const processFile = (filePath: string, parent: FileNode) => {
-      const parts = filePath.split('/');
-      const fileName = parts.pop() || '';
-      const currentPath = parts.join('/');
-
-      let currentNode = parent.children?.find(child => child.name === parts[0]);
-      if (!currentNode && parts.length > 0) {
-        currentNode = {
-          name: parts[0],
-          type: "folder",
-          children: []
-        };
-        parent.children?.push(currentNode);
-      }
-
-      if (parts.length > 1) {
-        processFile(parts.slice(1).join('/') + '/' + fileName, currentNode || parent);
-      } else if (fileName) {
-        const extension = fileName.split('.').pop();
-        parent.children?.push({
-          name: fileName,
-          type: "file",
-          extension
-        });
-      }
-    };
-
-    extractedFiles.forEach(file => {
-      processFile(file.path, root);
-    });
-
-    return root;
-  };
-  
   const handleUploadComplete = (response: UploadResponse) => {
     console.log('Upload response:', response);
     setHasUploadedFile(true);
     const cleanFileName = response.filename.split('_').slice(1).join('_').replace('.zip', '');
     console.log('Clean file name:', cleanFileName);
     setUploadedFileName(cleanFileName);
-    
-    if (response.upload?.extracted_files) {
-      console.log('Raw extracted files:', response.upload.extracted_files);
-      console.log('Number of files:', response.upload.extracted_files.length);
-      
-      // Log each file path separately
-      response.upload.extracted_files.forEach((file, index) => {
-        console.log(`File ${index + 1}:`, file);
-      });
-      
-      // Filter out any empty paths and normalize the paths
-      const validFiles = response.upload.extracted_files
-        .filter(file => file && file.path && file.path.trim() !== '')
-        .map(file => ({
-          ...file,
-          path: file.path.replace(/^\/+/, '').replace(/\/+$/, '')
-        }));
-      
-      console.log('Valid files:', validFiles);
-      
-      const structure = convertToFileStructure(validFiles);
-      // Ensure the root node has the correct name
-      structure.name = cleanFileName;
-      console.log('File structure created:', JSON.stringify(structure, null, 2));
-      setFileStructure(structure);
-      
-      // Store file information in localStorage
-      try {
-        localStorage.setItem('uploadedFileName', cleanFileName);
-        localStorage.setItem('fileStructure', JSON.stringify(structure));
-        console.log('Data stored in localStorage');
-        
-        // Verify the stored data
-        const storedStructure = localStorage.getItem('fileStructure');
-        console.log('Stored structure:', storedStructure);
-      } catch (error) {
-        console.error('Error storing data in localStorage:', error);
-      }
-      
-      // Navigate to dashboard after successful upload
-      console.log('Navigating to dashboard...');
+
+    // Use the backend's FileNode tree directly
+    const fileNodes = response.upload?.extracted_files || response.extracted_files;
+    if (fileNodes && Array.isArray(fileNodes)) {
+      // Wrap in a root node for the explorer
+      const root: FileNode = {
+        name: cleanFileName,
+        path: cleanFileName,
+        is_dir: true,
+        children: fileNodes as any // FileNode[]
+      };
+      setFileStructure(root);
+      localStorage.setItem('uploadedFileName', cleanFileName);
+      localStorage.setItem('fileStructure', JSON.stringify(root));
+      console.log('File structure created:', JSON.stringify(root, null, 2));
       navigate('/dashboard', { replace: true });
     } else {
-      console.error('No extracted files in response:', response);
+      console.error('No extracted file nodes in response:', response);
     }
   };
   
@@ -184,6 +117,9 @@ const Index = ({ isAuthenticated, onLogin, onLogout }: IndexProps) => {
             </p>
           </div>
           
+          {fileStructure && (
+            (() => { console.log("Final fileStructure for explorer:", JSON.stringify(fileStructure, null, 2)); return null; })()
+          )}
           <ResizablePanelGroup 
             direction="horizontal" 
             className="min-h-[calc(100vh-200px)] max-h-[calc(100vh-200px)] rounded-lg border"

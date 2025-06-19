@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { ChevronDownIcon, ChevronRightIcon, DownloadIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -29,7 +28,7 @@ export const TreeNode: React.FC<TreeNodeProps> = ({ node, level, onSelect, selec
 
   const handleDownload = (e: React.MouseEvent) => {
     e.stopPropagation();
-    if (node.type === "file") {
+    if (node.is_dir === false) {
       downloadFile(node);
     }
   };
@@ -63,16 +62,17 @@ export const TreeNode: React.FC<TreeNodeProps> = ({ node, level, onSelect, selec
         style={{ paddingLeft: `${level * 12 + 8}px` }}
         onClick={handleSelect}
       >
-        {node.type === "folder" && (
+        {node.is_dir === true && (
           <span className="mr-1 cursor-pointer" onClick={toggleExpand}>
             {isExpanded ? <ChevronDownIcon className="h-4 w-4" /> : <ChevronRightIcon className="h-4 w-4" />}
           </span>
         )}
-        {node.type !== "folder" && <span className="w-5" />}
-        {getFileIcon(node.name, node.type, node.extension)}
+        {node.is_dir === false && <span className="w-5" />}
+      
+        {getFileIcon(node.name, node.is_dir ? "folder" : "file")}
         <span className="ml-2 text-sm truncate">{node.name}</span>
         
-        {node.type === "file" && (
+        {node.is_dir === false && (
           <span 
             className="ml-auto cursor-pointer text-green-300 hover:text-green-100"
             onClick={handleDownload}

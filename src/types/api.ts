@@ -32,17 +32,18 @@ export const API: API = {
   getMe: '/api/me'
 };
 
+export interface FileNode {
+  name: string;
+  path: string;
+  is_dir: boolean;
+  children?: FileNode[];
+}
+
 export interface UploadResponse {
   filename: string;
-  extracted_files: Array<{
-    path: string;
-    content?: string;
-  }>;
+  extracted_files: FileNode[];
   upload?: {
-    extracted_files: Array<{
-      path: string;
-      content?: string;
-    }>;
+    extracted_files: FileNode[];
   };
 }
 
