@@ -1,3 +1,5 @@
+# This .gitignore file is used to exclude files and directories that should not be tracked by git
+
 # Rust build artifacts
 **/target/
 **/*.rs.bk
