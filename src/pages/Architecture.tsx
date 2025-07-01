@@ -235,7 +235,7 @@ const Architecture = () => {
               <li><strong>What should you know?</strong> Learn how to import and use icons in your components.</li>
               <li><a href="https://lucide.dev/" target="_blank" rel="noopener noreferrer" className="text-blue-600 underline">Lucide Icons Docs</a></li>
             </ul>
-          </div>
+          </div> 
           {/* AI Analysis Engine */}
           <div className="bg-card rounded-lg p-4 shadow">
             <h3 className="text-lg font-bold">AI Analysis Engine</h3>
