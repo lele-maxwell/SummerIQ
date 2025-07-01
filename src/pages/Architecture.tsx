@@ -16,7 +16,7 @@ const Architecture = () => {
           onClick={handleDownload}
         >
           <DownloadIcon className="w-5 h-5" />
-          Download
+          Download 
         </button>
       </div>
 
