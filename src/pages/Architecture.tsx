@@ -19,7 +19,7 @@ const Architecture = () => {
           Download 
         </button> 
       </div>
-
+ 
       {/* 1. Introduction */}
       <section className="mb-12">
         <h2 className="text-2xl font-semibold mb-2">Introduction</h2>
