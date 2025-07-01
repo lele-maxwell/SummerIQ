@@ -17,7 +17,7 @@ const Architecture = () => {
         >
           <DownloadIcon className="w-5 h-5" />
           Download 
-        </button>
+        </button> 
       </div>
 
       {/* 1. Introduction */}
