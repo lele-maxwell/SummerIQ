@@ -244,7 +244,7 @@ const Architecture = () => {
               <li><strong>Why is it used?</strong> Helps you quickly understand unfamiliar code, see relationships, and learn best practices.</li>
               <li><strong>What should you know?</strong> Use the AI features to get explanations, diagrams, and suggestions as you explore the project.</li>
             </ul>
-          </div>
+          </div> 
           {/* React Router */}
           <div className="bg-card rounded-lg p-4 shadow">
             <h3 className="text-lg font-bold">React Router</h3>
