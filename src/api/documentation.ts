@@ -1,4 +1,5 @@
-import { apiClient } from './client';
+import { ApiClient } from './client';
+import { API } from '../types/api';
 
 export interface FileAnalysis {
   path: string;
@@ -23,19 +24,39 @@ export interface ProjectDocumentation {
 
 export const documentationApi = {
   getFileAnalysis: async (filePath: string): Promise<FileAnalysis> => {
-    const response = await apiClient.get(`/api/documentation/file/${filePath}`);
-    return response.data;
+    const token = localStorage.getItem('token') || '';
+    const apiClient = new ApiClient(token);
+    // You may need to implement getFileAnalysis in ApiClient if not present
+    const response = await fetch(`${API.baseUrl}/api/documentation/file/${filePath}`, {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+    if (!response.ok) throw new Error('Failed to fetch file analysis');
+    return response.json();
   },
 
   getProjectDocumentation: async (projectPath: string = 'current'): Promise<ProjectDocumentation> => {
-    const response = await apiClient.get(`/api/documentation/project/${projectPath}`);
-    return response.data;
+    const token = localStorage.getItem('token') || '';
+    const response = await fetch(`${API.baseUrl}/api/documentation/project/${projectPath}`, {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+    if (!response.ok) throw new Error('Failed to fetch project documentation');
+    return response.json();
   },
 
   downloadDocumentation: async (projectPath: string = 'current'): Promise<Blob> => {
-    const response = await apiClient.get(`/api/documentation/download/${projectPath}`, {
+    const token = localStorage.getItem('token') || '';
+    const response = await fetch(`${API.baseUrl}/api/documentation/download/${projectPath}`, {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      },
+      // @ts-ignore
       responseType: 'blob'
     });
-    return response.data;
+    if (!response.ok) throw new Error('Failed to download documentation');
+    return response.blob();
   }
 }; 
