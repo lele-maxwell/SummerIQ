@@ -6,6 +6,7 @@ import Index from "./pages/Index";
 import Dashboard from "./pages/Dashboard";
 import About from "./pages/About";
 import NotFound from "./pages/NotFound";
+import Architecture from "./pages/Architecture";
 
 const queryClient = new QueryClient();
 
@@ -61,6 +62,10 @@ const App = () => {
                   onLogout={handleLogout}
                 />
               } 
+            />
+            <Route 
+              path="/architecture" 
+              element={<Architecture />} 
             />
             <Route path="*" element={<NotFound />} />
           </Routes>
