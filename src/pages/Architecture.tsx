@@ -20,7 +20,7 @@ const Architecture = () => {
         </button> 
       </div>
  
-      {/* 1. Introduction */}
+      {/* 1. Introduction */} 
       <section className="mb-12">
         <h2 className="text-2xl font-semibold mb-2">Introduction</h2>
         <p className="text-muted-foreground mb-4">
