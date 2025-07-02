@@ -41,6 +41,7 @@ pub async fn get_project_documentation(
     storage_service: web::Data<StorageService>,
     analysis_service: web::Data<AnalysisService>,
 ) -> Result<HttpResponse, AppError> {
+    tracing::info!("get_project_documentation: incoming path: {}", path);
     let path = path.into_inner();
     let decoded_path = decode(&path).map(|c| c.to_string()).unwrap_or(path.clone());
     let trimmed = decoded_path.trim_start_matches('/');
@@ -49,6 +50,7 @@ pub async fn get_project_documentation(
         return Err(AppError::BadRequest("Empty path provided".to_string()));
     }
     let project_name = path_parts[0];
+    tracing::info!("get_project_documentation: using project_name: {}", project_name);
     tracing::info!("get_project_documentation: calling get_file_id with project_name: {}", project_name);
     // Use the same logic as file analysis to get the UUID
     let uuid = storage_service.get_file_id(project_name).await?;
