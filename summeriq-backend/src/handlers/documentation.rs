@@ -39,7 +39,7 @@ pub async fn get_project_documentation(
     path: web::Path<String>,
     ai_service: web::Data<AIService>,
     storage_service: web::Data<StorageService>,
-    analysis_service: web::Data<AnalysisService>,
+    _analysis_service: web::Data<AnalysisService>,
 ) -> Result<HttpResponse, AppError> {
     tracing::info!("get_project_documentation: incoming path: {}", path);
     let path = path.into_inner();
@@ -51,77 +51,134 @@ pub async fn get_project_documentation(
     }
     let project_name = path_parts[0];
     tracing::info!("get_project_documentation: using project_name: {}", project_name);
-    tracing::info!("get_project_documentation: calling get_file_id with project_name: {}", project_name);
-    // Use the same logic as file analysis to get the UUID
     let uuid = storage_service.get_file_id(project_name).await?;
     let extracted_dir = format!("extracted_{}", uuid);
     let files = storage_service.list_files(&extracted_dir).await?;
 
-    // Flatten the file tree to a list of files (not directories)
-    fn flatten_files(nodes: &[crate::services::storage::FileNode], parent: &str, out: &mut Vec<(String, String)>) {
+    // Helper to flatten file tree to a list of (path, is_dir)
+    fn flatten_files(nodes: &[crate::services::storage::FileNode], parent: &str, out: &mut Vec<(String, bool)>) {
         for node in nodes {
             let full_path = if parent.is_empty() {
                 node.name.clone()
             } else {
                 format!("{}/{}", parent, node.name)
             };
+            out.push((full_path.clone(), node.is_dir));
             if node.is_dir {
                 if let Some(children) = &node.children {
                     flatten_files(children, &full_path, out);
                 }
-            } else {
-                out.push((full_path.clone(), node.name.clone()));
             }
         }
     }
     let mut file_list = Vec::new();
     flatten_files(&files, "", &mut file_list);
 
-    let mut file_analyses = Vec::new();
-    let mut all_dependencies = Vec::new();
+    // Build a file/folder structure string for the prompt
+    let mut structure = String::new();
+    for (path, is_dir) in &file_list {
+        if *is_dir {
+            structure.push_str(&format!("[DIR] {}\n", path));
+        } else {
+            structure.push_str(&format!("      {}\n", path));
+        }
+    }
 
-    for (file_path, file_name) in &file_list {
-        let full_path = format!("{}/{}", extracted_dir, file_path);
+    // Helper to check if a file is likely text/code (not binary)
+    fn is_text_file(path: &str) -> bool {
+        let text_exts = [
+            ".rs", ".ts", ".tsx", ".js", ".jsx", ".json", ".toml", ".md", ".txt", ".yaml", ".yml", ".html", ".css", ".scss", ".mjs", ".cjs", ".env", ".lock", ".sql"
+        ];
+        text_exts.iter().any(|ext| path.ends_with(ext))
+    }
+
+    // Gather file contents (up to 10KB per file, skip binaries)
+    let mut file_contents = String::new();
+    for (path, is_dir) in &file_list {
+        if *is_dir { continue; }
+        if !is_text_file(path) { continue; }
+        let full_path = format!("{}/{}", extracted_dir, path);
         if let Ok(content_bytes) = storage_service.read_file(&full_path).await {
-            if let Ok(content) = String::from_utf8(content_bytes) {
-                if let Ok(analysis) = analysis_service.analyze_file(file_path, &content).await {
-                    all_dependencies.extend(analysis.dependencies.clone());
-                    file_analyses.push(FileAnalysisDoc {
-                        path: file_path.clone(),
-                        name: file_name.clone(),
-                        description: analysis.file_purpose,
-                        dependencies: analysis.dependencies,
-                        relationships: vec![], // TODO: implement relationships if needed
-                    });
-                }
+            // Limit to 10KB per file
+            let content_bytes = if content_bytes.len() > 10_240 {
+                &content_bytes[..10_240]
+            } else {
+                &content_bytes
+            };
+            if let Ok(content) = String::from_utf8(content_bytes.to_vec()) {
+                file_contents.push_str(&format!("--- {} ---\n{}\n\n", path, content));
             }
         }
     }
 
-    // Remove duplicate dependencies
-    all_dependencies.sort();
-    all_dependencies.dedup();
+    // Build the AI prompt using the user's requirements
+    let prompt = format!(
+        r#"
+You are an expert technical writer and software architect. Your task is to generate well-structured, clean, and educational documentation for this software project, specifically tailored for junior developers and newcomers to the tech stack.
 
-    // Generate project description and architecture using AIService
-    let description = ai_service.analyze_text(&format!(
-        "Summarize the purpose and main features of the project based on the following file analyses: {:?}",
-        file_analyses.iter().map(|f| &f.description).collect::<Vec<_>>()
-    )).await.unwrap_or_else(|_| "No summary available.".to_string());
+Project Name: {project_name}
 
-    let architecture = ai_service.analyze_text(&format!(
-        "Describe the high-level architecture of the project based on the following files and their purposes: {:?}",
-        file_analyses.iter().map(|f| format!("{}: {}", f.path, f.description)).collect::<Vec<_>>()
-    )).await.unwrap_or_else(|_| "No architecture info available.".to_string());
+Here is the file and folder structure of the project:
+{structure}
 
-    let setup_instructions = "No setup instructions available.".to_string(); // TODO: Optionally generate with AI
+Here are the contents of the project files:
+{file_contents}
+
+✅ Documentation Goals:
+
+🎯 Target Audience:
+Junior developers who are eager to learn, understand, and confidently contribute to the project.
+📚 Documentation Requirements:
+1. Project Architecture Overview
+    Provide a clear, high-level explanation of the system.
+    Include diagrammatic representations (ASCII, Mermaid, or visual if supported).
+    Show how each major component (frontend, backend, database, storage, etc.) interacts.
+    Emphasize flow of data and responsibilities of each layer (e.g., API calls, auth, storage).
+2. File and Folder Structure Walkthrough
+    List and explain all major files and folders (e.g., main.rs, routes/, models/, App.tsx).
+    For each file:
+        Explain its purpose.
+        How it connects to other parts of the system.
+        Whether it's an entry point, config, model, route, or utility.
+    Use clear, beginner-friendly language and define technical terms.
+3. Technology Stack Summary
+    List all the technologies and frameworks used in the project (e.g., Rust, Axum, SQLx, JWT, MinIO, PostgreSQL, React, TailwindCSS).
+    For each:
+        Explain what it's used for in the project.
+        Include 1–2 beginner-friendly learning resources (YouTube links, blog posts, official docs).
+4. Developer Flow & Use Case Walkthrough
+    Describe the user journey through the app:
+        Example: User signs up → logs in → uploads a file → sees it in dashboard → logs out.
+    Explain:
+        Authentication flow (e.g., JWT, session tokens).
+        Routing and navigation logic (e.g., protected routes).
+        API interactions, form handling, file uploads, and error responses.
+    Show how the frontend and backend communicate.
+5. Educational and Encouraging Tone
+    Write as if teaching a junior developer.
+    Break down complex concepts with analogies, examples, and clear definitions.
+    Use a friendly, welcoming tone that encourages exploration and learning.
+    Include 'What to Learn Next' tips for further growth.
+🌱 Bonus Outcome:
+    This documentation should give any junior developer enough confidence to understand and meaningfully contribute to the codebase, architecture, and project decisions.
+
+**Format your entire output using Markdown. Use headings, subheadings, bullet points, code blocks, and diagrams where appropriate.**
+"#,
+        project_name = project_name,
+        structure = structure,
+        file_contents = file_contents
+    );
+
+    // Call the AI once with the full prompt
+    let ai_doc = ai_service.analyze_text(&prompt).await.unwrap_or_else(|_| "No documentation available.".to_string());
 
     let doc = ProjectDocumentation {
         project_name: project_name.to_string(),
-        description,
-        architecture,
-        file_analyses,
-        dependencies: all_dependencies,
-        setup_instructions,
+        description: ai_doc,
+        architecture: String::new(),
+        file_analyses: Vec::new(),
+        dependencies: Vec::new(),
+        setup_instructions: String::new(),
     };
     Ok(HttpResponse::Ok().json(doc))
 } 

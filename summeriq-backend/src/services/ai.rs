@@ -1,8 +1,15 @@
 use reqwest::Client;
 use serde_json::{json, Value};
 use tracing::{info, error, warn};
+use std::sync::Arc;
+use tokio::sync::Mutex;
+use once_cell::sync::Lazy;
+use tokio::time::{sleep, Duration};
 
 use crate::error::AppError;
+
+// Add a global mutex for throttling Groq API requests
+static AI_THROTTLE: Lazy<Arc<Mutex<()>>> = Lazy::new(|| Arc::new(Mutex::new(())));
 
 #[derive(Clone)]
 pub struct AIService {
@@ -20,6 +27,8 @@ impl AIService {
     }
 
     pub async fn analyze_text(&self, prompt: &str) -> Result<String, AppError> {
+        // Acquire the throttle lock to serialize requests
+        let _throttle = AI_THROTTLE.lock().await;
         let client = reqwest::Client::new();
         
         let request_body = json!({
@@ -86,6 +95,9 @@ impl AIService {
                 error!("Invalid response format from AI service");
                 AppError::InternalServerError("Invalid response from AI service".to_string())
             })?;
+
+        // Add a delay to throttle requests (1 second between requests)
+        sleep(Duration::from_secs(1)).await;
 
         Ok(content.to_string())
     }
