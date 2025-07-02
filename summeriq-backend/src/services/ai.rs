@@ -57,15 +57,22 @@ impl AIService {
         if !status.is_success() {
             let error_text = response.text().await.unwrap_or_else(|_| "Unknown error".to_string());
             error!("API error response: {}", error_text);
-            
+
             let error_message = match status.as_u16() {
                 503 => "AI service is temporarily unavailable. Please try again in a few moments.".to_string(),
-                429 => "Rate limit exceeded. Please try again later.".to_string(),
+                429 => "AI service is temporarily unavailable. Please try again in a minute or upgrade your plan.".to_string(),
                 401 => "Invalid API key. Please check your configuration.".to_string(),
                 _ => format!("AI service error: {} - {}", status, error_text)
             };
-            
-            return Err(AppError::InternalServerError(error_message));
+
+            // Return user-friendly error for 429 (rate limit) and 503 (unavailable)
+            if status.as_u16() == 429 {
+                return Err(AppError::BadRequest(error_message));
+            } else if status.as_u16() == 503 {
+                return Err(AppError::InternalServerError(error_message));
+            } else {
+                return Err(AppError::InternalServerError(error_message));
+            }
         }
 
         let response_body = response.json::<Value>().await.map_err(|e| {
