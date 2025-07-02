@@ -20,7 +20,7 @@ pub struct FileNode {
 
 #[derive(Clone)]
 pub struct StorageService {
-    upload_dir: PathBuf,
+    pub upload_dir: PathBuf,
 }
 
 impl StorageService {
@@ -46,31 +46,38 @@ impl StorageService {
     }
 
     pub async fn get_file_id(&self, project_name: &str) -> Result<String, crate::error::AppError> {
+        use std::path::Path;
         // First try to extract UUID from project name (format: UUID_project)
         let parts: Vec<&str> = project_name.split('_').collect();
         if parts.len() >= 2 {
-            // If the project name contains a UUID, return it
+            tracing::info!("get_file_id: project_name contains UUID, returning {}", parts[0]);
             return Ok(parts[0].to_string());
         }
-        
-        // If no UUID in project name, try to find it in the storage directory
-        let dir = self.upload_dir.join("extracted_*");
-        let pattern = dir.to_string_lossy();
-        let entries = glob::glob(&pattern)
+        // If no UUID in project name, try to find it in the storage directory by matching zip file
+        let pattern = format!("*_{}.zip", project_name);
+        let search_path = self.upload_dir.join(&pattern);
+        let glob_pattern = search_path.to_string_lossy();
+        tracing::info!("get_file_id: searching with glob pattern: {}", glob_pattern);
+        let entries = glob::glob(&glob_pattern)
             .map_err(|e| crate::error::AppError::InternalServerError(format!("Failed to search for UUID: {}", e)))?;
-        
         for entry in entries {
             if let Ok(path) = entry {
+                tracing::info!("get_file_id: found file: {:?}", path);
                 if let Some(file_name) = path.file_name() {
                     let name = file_name.to_string_lossy();
-                    if name.starts_with("extracted_") {
-                        let uuid = name.trim_start_matches("extracted_");
-                        return Ok(uuid.to_string());
+                    if let Some(uuid) = name.split('_').next() {
+                        let extracted_dir = self.upload_dir.join(format!("extracted_{}", uuid));
+                        if Path::new(&extracted_dir).exists() {
+                            tracing::info!("get_file_id: extracted uuid: {} (extracted dir exists)", uuid);
+                            return Ok(uuid.to_string());
+                        } else {
+                            tracing::warn!("get_file_id: extracted dir does not exist for uuid: {}", uuid);
+                        }
                     }
                 }
             }
         }
-        
+        tracing::warn!("get_file_id: No UUID found for project: {}", project_name);
         Err(crate::error::AppError::BadRequest("No UUID found for project".to_string()))
     }
 

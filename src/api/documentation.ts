@@ -38,7 +38,7 @@ export const documentationApi = {
 
   getProjectDocumentation: async (projectPath: string = 'current'): Promise<ProjectDocumentation> => {
     const token = localStorage.getItem('token') || '';
-    const response = await fetch(`${API.baseUrl}/api/documentation/project/${projectPath}`, {
+    const response = await fetch(`${API.baseUrl}/api/documentation/project/${encodeURIComponent(projectPath)}`, {
       headers: {
         'Authorization': `Bearer ${token}`
       }

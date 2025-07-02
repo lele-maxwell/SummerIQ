@@ -5,6 +5,7 @@ import { Progress } from "@/components/ui/progress";
 import { API, UploadResponse } from "@/types/api";
 import { getApiUrl } from "@/lib/api";
 import { uploadProject } from "@/api/upload";
+import { FileNode } from "@/components/explorer/types";
 
 interface FileUploadProps {
   onUploadComplete: (response: UploadResponse) => void;
@@ -76,10 +77,14 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
         
         // Store upload data in localStorage
         localStorage.setItem('uploadData', JSON.stringify({
-          file_id: result.file_id,
           filename: result.filename,
-          upload: result.upload
+          upload: result.upload,
+          extracted_files: result.extracted_files
         }));
+        // Store uploaded project name (after first underscore, without extension) for documentation API
+        // Example: '7c3e8258-849f-4d3f-b412-351a2089eec3_business-platform(1).zip' -> 'business-platform(1)'
+        const projectName = result.filename.split('_').slice(1).join('_').replace(/\.(zip|sip)$/i, '');
+        localStorage.setItem('uploadedFileName', projectName);
       } else {
         console.error('Unexpected response format:', result);
         setError('Received unexpected response format from server');
@@ -190,25 +195,17 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
                   Upload Results
                 </h4>
                 <div className="space-y-2">
-                  <p className="text-sm text-muted-foreground">
-                    File ID: {uploadResult.file_id}
-                  </p>
                   {uploadResult.upload?.extracted_files && (
                     <>
                       <h5 className="font-medium text-sm mt-2">Extracted Files:</h5>
                       <ul className="space-y-1">
-                        {uploadResult.upload.extracted_files.map((file: string, index: number) => (
+                        {uploadResult.upload.extracted_files.map((file: FileNode, index: number) => (
                           <li key={index} className="text-sm text-muted-foreground">
-                            {file}
+                            {file.name}
                           </li>
                         ))}
                       </ul>
                     </>
-                  )}
-                  {uploadResult.upload?.extraction_path && (
-                    <p className="text-sm text-muted-foreground">
-                      Extraction Path: {uploadResult.upload.extraction_path}
-                    </p>
                   )}
                 </div>
               </div>

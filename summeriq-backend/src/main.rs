@@ -18,6 +18,7 @@ mod handlers;
 use routes::auth;
 use routes::upload;
 use routes::analysis;
+use routes::documentation;
 
 use config::Config;
 use services::{StorageService, AnalysisService, AIService, AuthService};
@@ -96,6 +97,7 @@ async fn main() -> std::io::Result<()> {
                         web::scope("/analysis")
                             .route("/file/{path:.*}", web::get().to(routes::analysis::analyze_file))
                     )
+                    .configure(documentation::configure)
             )
     })
     .bind(("127.0.0.1", config.server_port))?
