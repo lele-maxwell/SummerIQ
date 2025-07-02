@@ -23,6 +23,13 @@ const Dashboard = ({ isAuthenticated, onLogout }: DashboardProps) => {
 
   useEffect(() => {
     console.log('Dashboard mounted');
+    // Only restore from localStorage if authenticated
+    if (!isAuthenticated) {
+      setUploadedFileName("");
+      setFileStructure(null);
+      setIsLoading(false);
+      return;
+    }
     // Get the file information from localStorage
     const storedFileName = localStorage.getItem('uploadedFileName');
     const storedFileStructure = localStorage.getItem('fileStructure');
@@ -52,7 +59,7 @@ const Dashboard = ({ isAuthenticated, onLogout }: DashboardProps) => {
     }
     
     setIsLoading(false);
-  }, []);
+  }, [isAuthenticated]);
 
   const handleFileSelect = (file: FileNode, path: string) => {
     console.log('File selected:', file);
@@ -66,6 +73,7 @@ const Dashboard = ({ isAuthenticated, onLogout }: DashboardProps) => {
       <div className="min-h-screen flex flex-col bg-background">
         <Header 
           isAuthenticated={isAuthenticated} 
+          onLogin={() => {}} 
           onLogout={onLogout} 
         />
         <div className="flex-grow container mx-auto py-6">
@@ -84,6 +92,7 @@ const Dashboard = ({ isAuthenticated, onLogout }: DashboardProps) => {
       <div className="min-h-screen flex flex-col bg-background">
         <Header 
           isAuthenticated={isAuthenticated} 
+          onLogin={() => {}} 
           onLogout={onLogout} 
         />
         <div className="flex-grow container mx-auto py-6">
@@ -100,6 +109,7 @@ const Dashboard = ({ isAuthenticated, onLogout }: DashboardProps) => {
     <div className="min-h-screen flex flex-col bg-background">
       <Header 
         isAuthenticated={isAuthenticated} 
+        onLogin={() => {}} 
         onLogout={onLogout} 
       />
       
