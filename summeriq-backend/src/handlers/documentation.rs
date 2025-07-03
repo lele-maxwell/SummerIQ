@@ -96,11 +96,11 @@ You are an expert technical writer and software architect. Here is the file and 
 
 {structure}
 
-Please give a high-level architectural overview of how the folders and files relate to each other. Focus on helping a junior developer understand how this is structured and why. No file content yet—just structure. Use Markdown formatting, clear sections, and diagrams if helpful.
+Please give a high-level architectural overview of how the folders and files relate to each other. Focus on helping a junior developer understand how this is structured and why. Include a diagram (ASCII or Mermaid if possible) that visually represents the architecture. Be concise, explicit, and do not use meta language, markdown formatting, or explanations—output only the content and diagram.
 "#,
         structure = structure
     );
-    let structure_summary = ai_service.analyze_text(&structure_prompt).await.unwrap_or_else(|_| "No structure summary available.".to_string());
+    let structure_summary = ai_service.analyze_text(&structure_prompt).await.unwrap_or_else(|_| "".to_string());
 
     // Step 2: Dynamically select up to 8 key files for detailed summary
     fn score_file(path: &str) -> i32 {
@@ -125,7 +125,7 @@ Please give a high-level architectural overview of how the folders and files rel
     scored_files.sort_by(|a, b| b.1.cmp(&a.1));
     let key_files: Vec<_> = scored_files.iter().take(8).map(|(p, _)| p.clone()).collect();
 
-    // Step 2: For each key file, get a summary from the AI and build FileAnalysisDoc
+    // Step 2: For each key file, get a concise summary from the AI and build FileAnalysisDoc
     let mut file_analyses = Vec::new();
     for path in &key_files {
         let full_path = format!("{}/{}", extracted_dir, path);
@@ -148,7 +148,7 @@ Here is the file `{path}` from a software project:
 {content}
 ---
 
-Please summarize what this file does, how it connects to the rest of the project, and what a junior developer should understand about it. Use Markdown formatting, clear sections, and bullet points. If the file is truncated, note that in your summary.
+Summarize in 1-2 sentences, directly and explicitly, what this file does and how it fits into the project. Do not use meta language, markdown formatting, or explanations—output only the summary.
 "#,
                     path = path,
                     content = content
@@ -230,9 +230,7 @@ Please summarize what this file does, how it connects to the rest of the project
             }
         }
     }
-    if setup_instructions.trim().is_empty() {
-        setup_instructions = "No setup instructions available.".to_string();
-    }
+    // If still empty, leave as empty string (frontend will handle)
 
     // Step 5: Synthesize all summaries into a final documentation prompt and get the final doc
     let mut all_summaries = String::new();
