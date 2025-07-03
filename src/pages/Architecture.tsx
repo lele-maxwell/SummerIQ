@@ -9,6 +9,17 @@ import 'highlight.js/styles/github.css';
 import MermaidRenderer from '@/components/MermaidRenderer';
 // import remarkMermaid from 'remark-mermaidjs'; // Will be added after install
 
+// Custom renderer for code blocks to support Mermaid diagrams
+const renderers = {
+  code({inline, className, children, ...props}: any) {
+    const code = String(children).trim();
+    if (className === 'language-mermaid' || code.startsWith('graph ')) {
+      return <MermaidRenderer chart={code} />;
+    }
+    return <code className={className} {...props}>{children}</code>;
+  }
+};
+
 const Architecture = () => {
   const [projectDoc, setProjectDoc] = useState<ProjectDocumentation | null>(null);
   const [uploadedFileName, setUploadedFileName] = useState<string>("");
@@ -114,16 +125,12 @@ const Architecture = () => {
       <div className="doc-section-card mb-16">
         <h2 className="text-3xl font-bold mb-4 text-center">High-Level Architecture</h2>
         <div className="documentation-markdown text-lg text-muted-foreground text-center mb-8">
-          {/* Mermaid diagram rendering logic */}
-          {projectDoc.architecture && projectDoc.architecture.trim().startsWith('graph ') ? (
-            <MermaidRenderer chart={projectDoc.architecture.trim()} />
-          ) : (
-            <ReactMarkdown
-              children={projectDoc.architecture || 'No architecture summary available.'}
-              remarkPlugins={[remarkGfm /*, remarkMermaid */]}
-              rehypePlugins={[rehypeHighlight]}
-            />
-          )}
+          <ReactMarkdown
+            children={projectDoc.architecture || 'No architecture summary available.'}
+            remarkPlugins={[remarkGfm /*, remarkMermaid */]}
+            rehypePlugins={[rehypeHighlight]}
+            components={renderers}
+          />
         </div>
       </div>
 
