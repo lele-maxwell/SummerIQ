@@ -20,6 +20,34 @@ const renderers = {
   }
 };
 
+// Extract the first mermaid code block or graph definition from text
+function extractMermaidDiagram(text: string): string | null {
+  // Try to find a ```mermaid code block
+  const codeBlockMatch = text.match(/```mermaid\s*([\s\S]*?)```/);
+  if (codeBlockMatch) {
+    return codeBlockMatch[1].trim();
+  }
+  // Fallback: find a line starting with 'graph ' or 'flowchart '
+  const graphMatch = text.match(/^(graph|flowchart)\s[\s\S]*/m);
+  if (graphMatch) {
+    // Get all lines starting with graph/flowchart and following indented lines
+    const lines = text.split('\n');
+    const startIdx = lines.findIndex(line => line.trim().startsWith('graph ') || line.trim().startsWith('flowchart '));
+    if (startIdx !== -1) {
+      let diagram = lines[startIdx];
+      for (let i = startIdx + 1; i < lines.length; i++) {
+        if (lines[i].trim() === '' || lines[i].startsWith(' ') || lines[i].startsWith('\t')) {
+          diagram += '\n' + lines[i];
+        } else {
+          break;
+        }
+      }
+      return diagram.trim();
+    }
+  }
+  return null;
+}
+
 const Architecture = () => {
   const [projectDoc, setProjectDoc] = useState<ProjectDocumentation | null>(null);
   const [uploadedFileName, setUploadedFileName] = useState<string>("");
@@ -125,12 +153,21 @@ const Architecture = () => {
       <div className="doc-section-card mb-16">
         <h2 className="text-3xl font-bold mb-4 text-center">High-Level Architecture</h2>
         <div className="documentation-markdown text-lg text-muted-foreground text-center mb-8">
-          <ReactMarkdown
-            children={projectDoc.architecture || 'No architecture summary available.'}
-            remarkPlugins={[remarkGfm /*, remarkMermaid */]}
-            rehypePlugins={[rehypeHighlight]}
-            components={renderers}
-          />
+          {/* Robust Mermaid diagram extraction and rendering */}
+          {(() => {
+            const diagram = extractMermaidDiagram(projectDoc.architecture || '');
+            if (diagram) {
+              return <MermaidRenderer chart={diagram} />;
+            }
+            return (
+              <ReactMarkdown
+                children={projectDoc.architecture || 'No architecture summary available.'}
+                remarkPlugins={[remarkGfm /*, remarkMermaid */]}
+                rehypePlugins={[rehypeHighlight]}
+                components={renderers}
+              />
+            );
+          })()}
         </div>
       </div>
 
