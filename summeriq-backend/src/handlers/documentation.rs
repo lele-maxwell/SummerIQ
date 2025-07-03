@@ -74,6 +74,11 @@ pub async fn get_project_documentation(
     let mut file_list = Vec::new();
     flatten_files(&files, "", &mut file_list);
 
+    // Key files to prioritize for content (entry points, configs, main modules)
+    let key_file_names = [
+        "main.rs", "App.tsx", "app.tsx", "index.tsx", "index.js", "package.json", "Cargo.toml", "tsconfig.json", "next.config.js", "next.config.mjs", ".env", "README.md"
+    ];
+
     // Build a file/folder structure string for the prompt
     let mut structure = String::new();
     for (path, is_dir) in &file_list {
@@ -92,77 +97,81 @@ pub async fn get_project_documentation(
         text_exts.iter().any(|ext| path.ends_with(ext))
     }
 
-    // Gather file contents (up to 10KB per file, skip binaries)
+    // Gather file contents for up to 10 key files, truncate each to 1000 bytes, and limit total prompt size
     let mut file_contents = String::new();
+    let mut included_files = 0;
+    let mut omitted_files = Vec::new();
+    let mut total_chars = structure.len();
     for (path, is_dir) in &file_list {
         if *is_dir { continue; }
         if !is_text_file(path) { continue; }
-        let full_path = format!("{}/{}", extracted_dir, path);
-        if let Ok(content_bytes) = storage_service.read_file(&full_path).await {
-            // Limit to 10KB per file
-            let content_bytes = if content_bytes.len() > 10_240 {
-                &content_bytes[..10_240]
-            } else {
-                &content_bytes
-            };
-            if let Ok(content) = String::from_utf8(content_bytes.to_vec()) {
-                file_contents.push_str(&format!("--- {} ---\n{}\n\n", path, content));
+        let is_key = key_file_names.iter().any(|k| path.ends_with(k));
+        if is_key && included_files < 10 && total_chars < 15000 {
+            let full_path = format!("{}/{}", extracted_dir, path);
+            if let Ok(content_bytes) = storage_service.read_file(&full_path).await {
+                // Truncate to 1000 bytes
+                let content_bytes = if content_bytes.len() > 1000 {
+                    &content_bytes[..1000]
+                } else {
+                    &content_bytes
+                };
+                if let Ok(content) = String::from_utf8(content_bytes.to_vec()) {
+                    let entry = format!("--- {} ---\n{}\n\n", path, content);
+                    if total_chars + entry.len() < 15000 {
+                        file_contents.push_str(&entry);
+                        included_files += 1;
+                        total_chars += entry.len();
+                    } else {
+                        omitted_files.push(path.clone());
+                    }
+                }
             }
+        } else {
+            omitted_files.push(path.clone());
+        }
+    }
+    if !omitted_files.is_empty() {
+        file_contents.push_str("\n--- Some files omitted or truncated due to size limits. ---\n");
+        for path in omitted_files.iter().take(10) {
+            file_contents.push_str(&format!("[omitted] {}\n", path));
+        }
+        if omitted_files.len() > 10 {
+            file_contents.push_str(&format!("...and {} more omitted files.\n", omitted_files.len() - 10));
         }
     }
 
-    // Build the AI prompt using the user's requirements
+    // Build the AI prompt using a highly directive, educational, and thorough instruction
     let prompt = format!(
         r#"
-You are an expert technical writer and software architect. Your task is to generate well-structured, clean, and educational documentation for this software project, specifically tailored for junior developers and newcomers to the tech stack.
+You are an expert technical writer, software architect, and educator. Your job is to generate the best possible documentation for this software project, specifically for junior developers and newcomers.
 
-Project Name: {project_name}
+## Instructions:
+- Carefully analyze the full file/folder structure and the content of each file below.
+- Identify how files and modules relate to each other, and how data flows through the system.
+- Explain the overall architecture, the purpose of each major component, and how they interact.
+- Use diagrams (Mermaid, ASCII, or Markdown tables) to illustrate architecture and relationships.
+- For each major file/folder, explain:
+    - Its purpose and role in the project.
+    - How it connects to other files/folders.
+    - Whether it is an entry point, config, model, route, or utility.
+- List and explain all technologies and frameworks used, with beginner-friendly resources.
+- Walk through a typical developer flow (e.g., sign up, upload, analyze, view results).
+- Use clear, beginner-friendly language. Define technical terms and break down complex concepts.
+- Use analogies, examples, and "What to Learn Next" tips.
+- Write in an encouraging, welcoming tone that empowers juniors to contribute.
+- Format everything in Markdown with clear sections, headings, bullet points, and code blocks.
+- **Do not start writing until you have thoroughly analyzed the entire project.**
 
-Here is the file and folder structure of the project:
+## Project Name:
+{project_name}
+
+## File/Folder Structure:
 {structure}
 
-Here are the contents of the project files:
+## File Contents:
 {file_contents}
 
-✅ Documentation Goals:
-
-🎯 Target Audience:
-Junior developers who are eager to learn, understand, and confidently contribute to the project.
-📚 Documentation Requirements:
-1. Project Architecture Overview
-    Provide a clear, high-level explanation of the system.
-    Include diagrammatic representations (ASCII, Mermaid, or visual if supported).
-    Show how each major component (frontend, backend, database, storage, etc.) interacts.
-    Emphasize flow of data and responsibilities of each layer (e.g., API calls, auth, storage).
-2. File and Folder Structure Walkthrough
-    List and explain all major files and folders (e.g., main.rs, routes/, models/, App.tsx).
-    For each file:
-        Explain its purpose.
-        How it connects to other parts of the system.
-        Whether it's an entry point, config, model, route, or utility.
-    Use clear, beginner-friendly language and define technical terms.
-3. Technology Stack Summary
-    List all the technologies and frameworks used in the project (e.g., Rust, Axum, SQLx, JWT, MinIO, PostgreSQL, React, TailwindCSS).
-    For each:
-        Explain what it's used for in the project.
-        Include 1–2 beginner-friendly learning resources (YouTube links, blog posts, official docs).
-4. Developer Flow & Use Case Walkthrough
-    Describe the user journey through the app:
-        Example: User signs up → logs in → uploads a file → sees it in dashboard → logs out.
-    Explain:
-        Authentication flow (e.g., JWT, session tokens).
-        Routing and navigation logic (e.g., protected routes).
-        API interactions, form handling, file uploads, and error responses.
-    Show how the frontend and backend communicate.
-5. Educational and Encouraging Tone
-    Write as if teaching a junior developer.
-    Break down complex concepts with analogies, examples, and clear definitions.
-    Use a friendly, welcoming tone that encourages exploration and learning.
-    Include 'What to Learn Next' tips for further growth.
-🌱 Bonus Outcome:
-    This documentation should give any junior developer enough confidence to understand and meaningfully contribute to the codebase, architecture, and project decisions.
-
-**Format your entire output using Markdown. Use headings, subheadings, bullet points, code blocks, and diagrams where appropriate.**
+## Now, generate the documentation as described above.
 "#,
         project_name = project_name,
         structure = structure,
