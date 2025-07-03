@@ -123,12 +123,16 @@ Please give a high-level architectural overview of how the folders and files rel
         .map(|(path, _)| (path.clone(), score_file(path)))
         .collect();
     scored_files.sort_by(|a, b| b.1.cmp(&a.1));
-    let key_files: Vec<_> = scored_files.into_iter().take(8).map(|(p, _)| p).collect();
+    let key_files: Vec<_> = scored_files.iter().take(8).map(|(p, _)| p.clone()).collect();
 
-    // Step 2: For each key file, get a summary from the AI
-    let mut file_summaries = Vec::new();
+    // Step 2: For each key file, get a summary from the AI and build FileAnalysisDoc
+    let mut file_analyses = Vec::new();
     for path in &key_files {
         let full_path = format!("{}/{}", extracted_dir, path);
+        let name = path.split('/').last().unwrap_or("").to_string();
+        let mut description = String::new();
+        let mut dependencies = Vec::new();
+        let relationships = Vec::new(); // Not implemented yet
         if let Ok(content_bytes) = storage_service.read_file(&full_path).await {
             let content_bytes = if content_bytes.len() > 1000 {
                 &content_bytes[..1000]
@@ -149,21 +153,96 @@ Please summarize what this file does, how it connects to the rest of the project
                     path = path,
                     content = content
                 );
-                let summary = ai_service.analyze_text(&file_prompt).await.unwrap_or_else(|_| format!("No summary available for {path}"));
-                file_summaries.push((path.clone(), summary));
+                description = ai_service.analyze_text(&file_prompt).await.unwrap_or_else(|_| format!("No summary available for {path}"));
+                // Try to parse dependencies for package.json and Cargo.toml
+                if name == "package.json" {
+                    if let Ok(json) = serde_json::from_str::<serde_json::Value>(&content) {
+                        if let Some(deps) = json.get("dependencies") {
+                            if let Some(obj) = deps.as_object() {
+                                dependencies = obj.keys().cloned().collect();
+                            }
+                        }
+                    }
+                } else if name == "Cargo.toml" {
+                    let mut deps = Vec::new();
+                    for line in content.lines() {
+                        if line.trim_start().starts_with("[dependencies]") {
+                            for dep_line in content.lines().skip_while(|l| !l.trim_start().starts_with("[dependencies]")).skip(1) {
+                                let dep_line = dep_line.trim();
+                                if dep_line.starts_with('[') { break; }
+                                if let Some((dep, _)) = dep_line.split_once('=') {
+                                    deps.push(dep.trim().to_string());
+                                }
+                            }
+                            break;
+                        }
+                    }
+                    dependencies = deps;
+                }
+            }
+        }
+        file_analyses.push(FileAnalysisDoc {
+            path: path.clone(),
+            name,
+            description,
+            dependencies,
+            relationships,
+        });
+    }
+
+    // Step 3: Collect all dependencies from file_analyses
+    let mut dependencies = Vec::new();
+    for file in &file_analyses {
+        for dep in &file.dependencies {
+            if !dependencies.contains(dep) {
+                dependencies.push(dep.clone());
             }
         }
     }
 
-    // Step 3: Synthesize all summaries into a final documentation prompt and get the final doc
+    // Step 4: Extract setup instructions from README.md if present
+    let mut setup_instructions = String::new();
+    let readme_path = file_list.iter().find(|(p, _)| p.to_lowercase().ends_with("readme.md"));
+    if let Some((readme_rel_path, _)) = readme_path {
+        let full_path = format!("{}/{}", extracted_dir, readme_rel_path);
+        if let Ok(content_bytes) = storage_service.read_file(&full_path).await {
+            if let Ok(content) = String::from_utf8(content_bytes) {
+                // Try to extract a Setup/Installation section
+                let mut found = false;
+                let mut section = String::new();
+                for line in content.lines() {
+                    if line.to_lowercase().contains("setup") || line.to_lowercase().contains("installation") || line.to_lowercase().contains("getting started") {
+                        found = true;
+                    }
+                    if found {
+                        if line.starts_with('#') && !section.is_empty() {
+                            break;
+                        }
+                        section.push_str(line);
+                        section.push('\n');
+                    }
+                }
+                if !section.trim().is_empty() {
+                    setup_instructions = section;
+                } else {
+                    setup_instructions = content;
+                }
+            }
+        }
+    }
+    if setup_instructions.trim().is_empty() {
+        setup_instructions = "No setup instructions available.".to_string();
+    }
+
+    // Step 5: Synthesize all summaries into a final documentation prompt and get the final doc
     let mut all_summaries = String::new();
     all_summaries.push_str("# Project Structure Overview\n\n");
     all_summaries.push_str(&structure_summary);
     all_summaries.push_str("\n\n# Key File Summaries\n\n");
     let mut total_chars = all_summaries.len();
     let mut omitted_count = 0;
-    for (path, summary) in &file_summaries {
-        let entry = format!("## `{}`\n{}\n\n", path, summary);
+    for file in &file_analyses {
+        let entry = format!("## `{}`\n{}\n\n", file.path, file.description);
         if total_chars + entry.len() < 10_000 {
             all_summaries.push_str(&entry);
             total_chars += entry.len();
@@ -191,10 +270,10 @@ Now, generate the final documentation as described above.
     let doc = ProjectDocumentation {
         project_name: project_name.to_string(),
         description: final_doc,
-        architecture: String::new(),
-        file_analyses: Vec::new(),
-        dependencies: Vec::new(),
-        setup_instructions: String::new(),
+        architecture: structure_summary,
+        file_analyses,
+        dependencies,
+        setup_instructions,
     };
     Ok(HttpResponse::Ok().json(doc))
 } 
