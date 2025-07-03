@@ -79,7 +79,7 @@ pub async fn get_project_documentation(
         "main.rs", "App.tsx", "app.tsx", "index.tsx", "index.js", "package.json", "Cargo.toml", "tsconfig.json", "next.config.js", "next.config.mjs", ".env", "README.md"
     ];
 
-    // Build a file/folder structure string for the prompt
+    // Step 1: Generate the file/folder structure string
     let mut structure = String::new();
     for (path, is_dir) in &file_list {
         if *is_dir {
@@ -89,101 +89,108 @@ pub async fn get_project_documentation(
         }
     }
 
-    // Helper to check if a file is likely text/code (not binary)
-    fn is_text_file(path: &str) -> bool {
-        let text_exts = [
-            ".rs", ".ts", ".tsx", ".js", ".jsx", ".json", ".toml", ".md", ".txt", ".yaml", ".yml", ".html", ".css", ".scss", ".mjs", ".cjs", ".env", ".lock", ".sql"
-        ];
-        text_exts.iter().any(|ext| path.ends_with(ext))
-    }
+    // Step 1: Ask the AI for a high-level architecture summary based on the structure
+    let structure_prompt = format!(
+        r#"
+You are an expert technical writer and software architect. Here is the file and folder structure of a software project:
 
-    // Gather file contents for up to 10 key files, truncate each to 1000 bytes, and limit total prompt size
-    let mut file_contents = String::new();
-    let mut included_files = 0;
-    let mut omitted_files = Vec::new();
-    let mut total_chars = structure.len();
-    for (path, is_dir) in &file_list {
-        if *is_dir { continue; }
-        if !is_text_file(path) { continue; }
-        let is_key = key_file_names.iter().any(|k| path.ends_with(k));
-        if is_key && included_files < 10 && total_chars < 15000 {
-            let full_path = format!("{}/{}", extracted_dir, path);
-            if let Ok(content_bytes) = storage_service.read_file(&full_path).await {
-                // Truncate to 1000 bytes
-                let content_bytes = if content_bytes.len() > 1000 {
-                    &content_bytes[..1000]
-                } else {
-                    &content_bytes
-                };
-                if let Ok(content) = String::from_utf8(content_bytes.to_vec()) {
-                    let entry = format!("--- {} ---\n{}\n\n", path, content);
-                    if total_chars + entry.len() < 15000 {
-                        file_contents.push_str(&entry);
-                        included_files += 1;
-                        total_chars += entry.len();
-                    } else {
-                        omitted_files.push(path.clone());
-                    }
-                }
+{structure}
+
+Please give a high-level architectural overview of how the folders and files relate to each other. Focus on helping a junior developer understand how this is structured and why. No file content yet—just structure. Use Markdown formatting, clear sections, and diagrams if helpful.
+"#,
+        structure = structure
+    );
+    let structure_summary = ai_service.analyze_text(&structure_prompt).await.unwrap_or_else(|_| "No structure summary available.".to_string());
+
+    // Step 2: Dynamically select up to 8 key files for detailed summary
+    fn score_file(path: &str) -> i32 {
+        let lower = path.to_lowercase();
+        let mut score = 0;
+        // Shallowest path (fewer slashes = higher score)
+        score += 10 - lower.matches('/').count() as i32;
+        // Name contains key words
+        for kw in ["main", "index", "config", "readme", "app", "setup", "env"] {
+            if lower.contains(kw) { score += 5; }
+        }
+        // Code/config extension
+        for ext in [".rs", ".ts", ".tsx", ".js", ".jsx", ".json", ".toml", ".md", ".txt", ".yaml", ".yml", ".html", ".css", ".scss", ".mjs", ".cjs", ".env", ".lock", ".sql"] {
+            if lower.ends_with(ext) { score += 2; }
+        }
+        score
+    }
+    let mut scored_files: Vec<_> = file_list.iter()
+        .filter(|(_, is_dir)| !*is_dir)
+        .map(|(path, _)| (path.clone(), score_file(path)))
+        .collect();
+    scored_files.sort_by(|a, b| b.1.cmp(&a.1));
+    let key_files: Vec<_> = scored_files.into_iter().take(8).map(|(p, _)| p).collect();
+
+    // Step 2: For each key file, get a summary from the AI
+    let mut file_summaries = Vec::new();
+    for path in &key_files {
+        let full_path = format!("{}/{}", extracted_dir, path);
+        if let Ok(content_bytes) = storage_service.read_file(&full_path).await {
+            let content_bytes = if content_bytes.len() > 1000 {
+                &content_bytes[..1000]
+            } else {
+                &content_bytes
+            };
+            if let Ok(content) = String::from_utf8(content_bytes.to_vec()) {
+                let file_prompt = format!(
+                    r#"
+Here is the file `{path}` from a software project:
+
+---
+{content}
+---
+
+Please summarize what this file does, how it connects to the rest of the project, and what a junior developer should understand about it. Use Markdown formatting, clear sections, and bullet points. If the file is truncated, note that in your summary.
+"#,
+                    path = path,
+                    content = content
+                );
+                let summary = ai_service.analyze_text(&file_prompt).await.unwrap_or_else(|_| format!("No summary available for {path}"));
+                file_summaries.push((path.clone(), summary));
             }
-        } else {
-            omitted_files.push(path.clone());
-        }
-    }
-    if !omitted_files.is_empty() {
-        file_contents.push_str("\n--- Some files omitted or truncated due to size limits. ---\n");
-        for path in omitted_files.iter().take(10) {
-            file_contents.push_str(&format!("[omitted] {}\n", path));
-        }
-        if omitted_files.len() > 10 {
-            file_contents.push_str(&format!("...and {} more omitted files.\n", omitted_files.len() - 10));
         }
     }
 
-    // Build the AI prompt using a highly directive, educational, and thorough instruction
-    let prompt = format!(
+    // Step 3: Synthesize all summaries into a final documentation prompt and get the final doc
+    let mut all_summaries = String::new();
+    all_summaries.push_str("# Project Structure Overview\n\n");
+    all_summaries.push_str(&structure_summary);
+    all_summaries.push_str("\n\n# Key File Summaries\n\n");
+    let mut total_chars = all_summaries.len();
+    let mut omitted_count = 0;
+    for (path, summary) in &file_summaries {
+        let entry = format!("## `{}`\n{}\n\n", path, summary);
+        if total_chars + entry.len() < 10_000 {
+            all_summaries.push_str(&entry);
+            total_chars += entry.len();
+        } else {
+            omitted_count += 1;
+        }
+    }
+    if omitted_count > 0 {
+        all_summaries.push_str(&format!("\n--- Some file summaries omitted due to size limits ({} omitted). ---\n", omitted_count));
+    }
+    let final_prompt = format!(
         r#"
 You are an expert technical writer, software architect, and educator. Your job is to generate the best possible documentation for this software project, specifically for junior developers and newcomers.
 
-## Instructions:
-- Carefully analyze the full file/folder structure and the content of each file below.
-- Identify how files and modules relate to each other, and how data flows through the system.
-- Explain the overall architecture, the purpose of each major component, and how they interact.
-- Use diagrams (Mermaid, ASCII, or Markdown tables) to illustrate architecture and relationships.
-- For each major file/folder, explain:
-    - Its purpose and role in the project.
-    - How it connects to other files/folders.
-    - Whether it is an entry point, config, model, route, or utility.
-- List and explain all technologies and frameworks used, with beginner-friendly resources.
-- Walk through a typical developer flow (e.g., sign up, upload, analyze, view results).
-- Use clear, beginner-friendly language. Define technical terms and break down complex concepts.
-- Use analogies, examples, and "What to Learn Next" tips.
-- Write in an encouraging, welcoming tone that empowers juniors to contribute.
-- Format everything in Markdown with clear sections, headings, bullet points, and code blocks.
-- **Do not start writing until you have thoroughly analyzed the entire project.**
+Below are the project structure overview and summaries of key files. Please synthesize these into a complete, beginner-friendly documentation that explains the architecture, file relationships, technology stack, developer flow, and learning tips. Use diagrams, Markdown formatting, and a welcoming, educational tone.
 
-## Project Name:
-{project_name}
+{all_summaries}
 
-## File/Folder Structure:
-{structure}
-
-## File Contents:
-{file_contents}
-
-## Now, generate the documentation as described above.
+Now, generate the final documentation as described above.
 "#,
-        project_name = project_name,
-        structure = structure,
-        file_contents = file_contents
+        all_summaries = all_summaries
     );
-
-    // Call the AI once with the full prompt
-    let ai_doc = ai_service.analyze_text(&prompt).await.unwrap_or_else(|_| "No documentation available.".to_string());
+    let final_doc = ai_service.analyze_text(&final_prompt).await.unwrap_or_else(|_| "No documentation available.".to_string());
 
     let doc = ProjectDocumentation {
         project_name: project_name.to_string(),
-        description: ai_doc,
+        description: final_doc,
         architecture: String::new(),
         file_analyses: Vec::new(),
         dependencies: Vec::new(),
