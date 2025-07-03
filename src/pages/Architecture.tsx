@@ -2,6 +2,10 @@ import React, { useEffect, useState } from "react";
 import { DownloadIcon } from "lucide-react";
 import { FileNode } from "@/components/explorer/types";
 import { documentationApi, ProjectDocumentation } from "@/api/documentation";
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import rehypeHighlight from 'rehype-highlight';
+import 'highlight.js/styles/github.css';
 
 const Architecture = () => {
   const [projectDoc, setProjectDoc] = useState<ProjectDocumentation | null>(null);
@@ -75,9 +79,13 @@ const Architecture = () => {
       {/* 1. Introduction */}
       <section className="mb-12">
         <h2 className="text-2xl font-semibold mb-2">Introduction</h2>
-        <p className="text-muted-foreground mb-4">
-          {projectDoc.description || "No project description available."}
-        </p>
+        <div className="documentation-markdown text-muted-foreground mb-4">
+          <ReactMarkdown
+            children={projectDoc.description || 'No project description available.'}
+            remarkPlugins={[remarkGfm]}
+            rehypePlugins={[rehypeHighlight]}
+          />
+        </div>
       </section>
 
       {/* 2. High-Level Architecture Diagram */}

@@ -102,3 +102,51 @@
     font-feature-settings: "rlig" 1, "calt" 1;
   }
 }
+
+.documentation-markdown {
+  font-family: 'Inter', 'Roboto', Arial, sans-serif;
+  font-size: 18px;
+  line-height: 1.7;
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 1.5rem 0;
+  background: #fff;
+  color: #222;
+}
+.documentation-markdown h1,
+.documentation-markdown h2,
+.documentation-markdown h3 {
+  font-weight: 700;
+  margin-top: 2rem;
+  margin-bottom: 1rem;
+  line-height: 1.2;
+}
+.documentation-markdown h1 { font-size: 2.5rem; text-align: center; }
+.documentation-markdown h2 { font-size: 2rem; }
+.documentation-markdown h3 { font-size: 1.5rem; }
+.documentation-markdown ul, .documentation-markdown ol {
+  margin-left: 2rem;
+  margin-bottom: 1rem;
+}
+.documentation-markdown code {
+  background: #f5f5f5;
+  padding: 0.2em 0.4em;
+  border-radius: 4px;
+  font-size: 1em;
+}
+.documentation-markdown pre {
+  background: #f5f5f5;
+  padding: 1em;
+  border-radius: 6px;
+  overflow-x: auto;
+  margin-bottom: 2rem;
+}
+.documentation-markdown table {
+  border-collapse: collapse;
+  width: 100%;
+  margin-bottom: 2rem;
+}
+.documentation-markdown th, .documentation-markdown td {
+  border: 1px solid #ddd;
+  padding: 0.5em 1em;
+}
