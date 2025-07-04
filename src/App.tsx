@@ -18,6 +18,14 @@ const App = () => {
 
   const handleLogin = () => {
     setIsAuthenticated(true);
+    // Clear all project data and cache on login
+    localStorage.removeItem('uploadedFileName');
+    localStorage.removeItem('fileStructure');
+    Object.keys(localStorage).forEach(key => {
+      if (key.startsWith('projectDocCache_')) {
+        localStorage.removeItem(key);
+      }
+    });
   };
 
   const handleLogout = () => {

@@ -87,22 +87,9 @@ const Dashboard = ({ isAuthenticated, onLogout }: DashboardProps) => {
   }
 
   if (!uploadedFileName || !fileStructure) {
-    console.log('Missing required data:', { uploadedFileName, fileStructure });
-    return (
-      <div className="min-h-screen flex flex-col bg-background">
-        <Header 
-          isAuthenticated={isAuthenticated} 
-          onLogin={() => {}} 
-          onLogout={onLogout} 
-        />
-        <div className="flex-grow container mx-auto py-6">
-          <div className="text-center">
-            <h1 className="text-2xl font-bold mb-4">No Project Data</h1>
-            <p className="text-muted-foreground">Please upload a project first.</p>
-          </div>
-        </div>
-      </div>
-    );
+    // Redirect to upload page if no project data
+    navigate('/', { replace: true });
+    return null;
   }
 
   return (
