@@ -35,6 +35,41 @@ fn normalize_name(name: &str) -> String {
     name.to_lowercase().replace(|c: char| !c.is_ascii_alphanumeric(), "")
 }
 
+// Helper to extract a section from markdown by heading
+fn extract_markdown_section<'a>(content: &'a str, headings: &[&str]) -> Option<String> {
+    let mut lines = content.lines().peekable();
+    let mut in_section = false;
+    let mut section = Vec::new();
+    let mut current_heading_level = 0;
+    while let Some(line) = lines.next() {
+        let trimmed = line.trim();
+        // Match heading (e.g., # Setup, ## Installation, etc.)
+        if let Some((hashes, title)) = trimmed.split_once(' ') {
+            if hashes.starts_with('#') {
+                let level = hashes.chars().take_while(|&c| c == '#').count();
+                let title_lower = title.to_lowercase();
+                if headings.iter().any(|h| title_lower.contains(h)) {
+                    in_section = true;
+                    current_heading_level = level;
+                    continue;
+                }
+                if in_section && level <= current_heading_level {
+                    // End of section
+                    break;
+                }
+            }
+        }
+        if in_section {
+            section.push(line);
+        }
+    }
+    if !section.is_empty() {
+        Some(section.join("\n").trim().to_string())
+    } else {
+        None
+    }
+}
+
 pub async fn get_project_documentation(
     path: web::Path<String>,
     ai_service: web::Data<AIService>,
@@ -207,22 +242,9 @@ Summarize in 1-2 sentences, directly and explicitly, what this file does and how
         let full_path = format!("{}/{}", extracted_dir, readme_rel_path);
         if let Ok(content_bytes) = storage_service.read_file(&full_path).await {
             if let Ok(content) = String::from_utf8(content_bytes) {
-                // Try to extract a Setup/Installation section
-                let mut found = false;
-                let mut section = String::new();
-                for line in content.lines() {
-                    if line.to_lowercase().contains("setup") || line.to_lowercase().contains("installation") || line.to_lowercase().contains("getting started") {
-                        found = true;
-                    }
-                    if found {
-                        if line.starts_with('#') && !section.is_empty() {
-                            break;
-                        }
-                        section.push_str(line);
-                        section.push('\n');
-                    }
-                }
-                if !section.trim().is_empty() {
+                // Try to extract a Setup/Installation section using markdown heading parsing
+                let headings = ["setup", "installation", "getting started"];
+                if let Some(section) = extract_markdown_section(&content, &headings) {
                     setup_instructions = section;
                 } else {
                     setup_instructions = content;
