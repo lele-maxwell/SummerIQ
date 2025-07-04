@@ -181,7 +181,7 @@ const Architecture = () => {
       <div className="doc-section-card mb-16">
         <h2 className="text-3xl font-bold mb-4 text-center">High-Level Architecture</h2>
         <div className="documentation-markdown text-lg text-muted-foreground text-center mb-8">
-          {/* Robust Mermaid diagram extraction and rendering */}
+          {/* Only render the diagram if found; do not render the raw code as Markdown */}
           {(() => {
             const diagram = extractMermaidDiagram(projectDoc.architecture || '');
             if (diagram) {
