@@ -34,11 +34,11 @@ impl AIService {
         loop {
             let response = client
                 .post("https://api.groq.com/openai/v1/chat/completions")
-                .header("Authorization", format!("Bearer {}", self.api_key))
+            .header("Authorization", format!("Bearer {}", self.api_key))
                 .header("Content-Type", "application/json")
-                .json(&json!({
+            .json(&json!({
                     "model": "deepseek-r1-distill-llama-70b",
-                    "messages": [
+                "messages": [
                         {"role": "system", "content": "You are a helpful AI assistant that analyzes code and provides clear, concise responses. IMPORTANT: Do not include any thinking process, internal monologue, or meta-commentary in your response. Do not start with '<think>' or similar markers. Provide direct, factual answers only."},
                         {"role": "user", "content": prompt}
                     ],
