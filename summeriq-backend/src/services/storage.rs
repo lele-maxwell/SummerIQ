@@ -20,7 +20,7 @@ pub struct FileNode {
 
 #[derive(Clone)]
 pub struct StorageService {
-    pub upload_dir: PathBuf,
+    upload_dir: PathBuf,
 }
 
 impl StorageService {
@@ -28,6 +28,10 @@ impl StorageService {
         Self { 
             upload_dir: PathBuf::from(upload_dir)
         }
+    }
+
+    pub fn upload_dir(&self) -> &Path {
+        &self.upload_dir
     }
 
     pub async fn save_file(&self, content: &[u8], filename: &str) -> Result<(), crate::error::AppError> {
