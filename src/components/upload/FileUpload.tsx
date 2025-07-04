@@ -73,6 +73,13 @@ export function FileUpload({ onUploadComplete }: FileUploadProps) {
         console.log('Upload data:', result.upload);
         setUploadResult(result);
         onUploadComplete(result);
+        
+        // Store upload data in localStorage
+        localStorage.setItem('uploadData', JSON.stringify({
+          file_id: result.file_id,
+          filename: result.filename,
+          upload: result.upload
+        }));
       } else {
         console.error('Unexpected response format:', result);
         setError('Received unexpected response format from server');

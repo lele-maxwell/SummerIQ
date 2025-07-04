@@ -1,6 +1,6 @@
 import React from "react";
 import { Header } from "@/components/layout/Header";
-import { BrainCogIcon, CodeIcon, FileCodeIcon, MessageSquareTextIcon } from "lucide-react";
+import { BrainCogIcon, CodeIcon, FileCodeIcon, MessageSquareTextIcon, BookOpenIcon, GraduationCapIcon } from "lucide-react";
 
 interface AboutProps {
   isAuthenticated: boolean;
@@ -25,50 +25,54 @@ const About = ({ isAuthenticated, onLogin, onLogout }: AboutProps) => {
             </div>
             <h1 className="text-4xl font-bold mb-4">About ZipMind</h1>
             <p className="text-xl text-muted-foreground">
-              Your AI-powered code analysis companion
+              Your AI-powered learning companion for understanding project architecture
             </p>
           </div>
 
           <div className="grid gap-8 md:grid-cols-2 mb-12">
             <FeatureCard
-              icon={<CodeIcon className="h-8 w-8 text-zipmind-400" />}
-              title="Code Analysis"
-              description="Upload your codebase and get instant insights into its structure, patterns, and potential improvements."
+              icon={<BookOpenIcon className="h-8 w-8 text-zipmind-400" />}
+              title="Project Understanding"
+              description="Learn how different parts of a project connect and work together through AI-generated documentation and visualizations."
+            />
+            <FeatureCard
+              icon={<GraduationCapIcon className="h-8 w-8 text-zipmind-400" />}
+              title="Learning Platform"
+              description="Discover modern technologies, patterns, and best practices used in real-world projects through interactive learning."
             />
             <FeatureCard
               icon={<FileCodeIcon className="h-8 w-8 text-zipmind-400" />}
-              title="File Explorer"
-              description="Navigate through your project files with ease, understanding the relationships between different components."
+              title="Architecture Analysis"
+              description="Get detailed insights into project structure, file relationships, and architectural patterns with visual diagrams."
             />
             <FeatureCard
               icon={<MessageSquareTextIcon className="h-8 w-8 text-zipmind-400" />}
-              title="AI Chat"
-              description="Ask questions about your code and get intelligent responses powered by advanced AI models."
-            />
-            <FeatureCard
-              icon={<BrainCogIcon className="h-8 w-8 text-zipmind-400" />}
-              title="Smart Insights"
-              description="Receive detailed analysis and recommendations to improve your code quality and maintainability."
+              title="Interactive Learning"
+              description="Ask questions about code, get explanations, and learn from AI-powered insights about project architecture."
             />
           </div>
 
           <div className="bg-card border rounded-xl p-8 mb-12">
             <h2 className="text-2xl font-bold mb-4">Our Mission</h2>
             <p className="text-muted-foreground mb-4">
-              At ZipMind, we're dedicated to making code analysis and understanding more accessible and efficient. 
-              Our AI-powered platform helps developers quickly grasp complex codebases, identify potential issues, 
-              and make informed decisions about their code.
+              At ZipMind, we're dedicated to bridging the gap between knowing how to code and understanding how entire projects work. 
+              We believe that every developer, especially those early in their career, should be able to understand and contribute to 
+              complex projects with confidence.
+            </p>
+            <p className="text-muted-foreground mb-4">
+              Our AI-powered platform helps developers learn project architecture, understand file relationships, and discover modern 
+              technologies through interactive documentation, visualizations, and guided learning paths.
             </p>
             <p className="text-muted-foreground">
-              Whether you're working on a personal project or a large-scale application, ZipMind provides the tools 
-              and insights you need to write better code and become a more effective developer.
+              Whether you're a junior developer learning to contribute to open-source projects or a senior developer creating 
+              documentation for your team, ZipMind provides the tools and insights you need to understand and share project knowledge effectively.
             </p>
           </div>
 
           <div className="text-center">
-            <h2 className="text-2xl font-bold mb-4">Get Started Today</h2>
+            <h2 className="text-2xl font-bold mb-4">Start Learning Today</h2>
             <p className="text-muted-foreground mb-8">
-              Join thousands of developers who are already using ZipMind to improve their coding workflow.
+              Join developers who are using ZipMind to understand project architecture and contribute with confidence.
             </p>
             <a 
               href="/" 

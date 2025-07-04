@@ -1,29 +1,23 @@
-use actix_multipart::Multipart;
 use actix_web::{web, HttpResponse, Responder};
-use futures::{StreamExt, TryStreamExt};
-use serde_json::json;
-use tracing::{info, error};
-use uuid::Uuid;
+use tracing::info;
 use urlencoding::decode;
+use std::fs;
 
-use crate::error::AppError;
+use crate::services::AnalysisService;
+use crate::config::Config;
 use crate::services::StorageService;
-pub use crate::handlers::upload::upload_file;
+use crate::services::ai::AIService;
+use crate::error::AppError;
 
-pub async fn get_file(
-    storage_service: web::Data<StorageService>,
-    file_id: web::Path<String>,
-) -> Result<impl Responder, AppError> {
-    let content = storage_service.read_file(&file_id).await?;
-    Ok(HttpResponse::Ok()
-        .content_type("application/octet-stream")
-        .body(content))
-}
-
-pub async fn get_file_content(
-    storage_service: web::Data<StorageService>,
+pub async fn analyze_file(
     path: web::Path<String>,
+    analysis_service: web::Data<AnalysisService>,
+    storage_service: web::Data<StorageService>,
+    ai_service: web::Data<AIService>,
+    config: web::Data<Config>,
 ) -> Result<impl Responder, AppError> {
+    info!("Analyzing file: {}", path);
+    
     // Decode the URL-encoded path
     let decoded_path = match decode(&path) {
         Ok(path) => path,
@@ -54,11 +48,15 @@ pub async fn get_file_content(
     } else {
         format!("extracted_{}/{}", uuid, inner_path)
     };
-    
-    info!("Reading file from path: {}", full_path);
+    info!("Full path for analysis: {}", full_path);
+
+    // Read the file content
     let content = storage_service.read_file(&full_path).await?;
-    
-    Ok(HttpResponse::Ok()
-        .content_type("text/plain")
-        .body(content))
+    let file_content = String::from_utf8(content)
+        .map_err(|e| AppError::InternalServerError(format!("Failed to read file content: {}", e)))?;
+
+    // Analyze the file using the AnalysisService
+    let analysis = analysis_service.analyze_file(&full_path, &file_content).await?;
+
+    Ok(HttpResponse::Ok().json(analysis))
 } 

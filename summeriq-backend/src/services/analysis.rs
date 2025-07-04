@@ -5,114 +5,108 @@ use chrono::{DateTime, Utc};
 use crate::error::AppError;
 use reqwest::Client;
 use serde_json::json;
+use std::fs;
+use crate::services::StorageService;
+use crate::services::ai::AIService;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct FileAnalysis {
     pub language: String,
-    pub components: Vec<String>,
+    pub file_purpose: String,
     pub dependencies: Vec<String>,
-    pub recommendations: Vec<String>,
     pub analysis_time: String,
+    pub contents: String,
 }
 
 pub struct AnalysisService {
     client: Client,
     api_key: String,
+    storage_service: StorageService,
+    ai_service: AIService,
 }
 
 impl AnalysisService {
-    pub fn new(api_key: String) -> Self {
+    pub fn new(api_key: String, storage_service: StorageService, ai_service: AIService) -> Self {
+        info!("Initializing AnalysisService");
         Self {
             client: Client::new(),
             api_key,
+            storage_service,
+            ai_service,
         }
     }
 
     pub async fn analyze_file(&self, file_path: &str, content: &str) -> Result<FileAnalysis, AppError> {
-        info!("Sending request to OpenRouter API");
+        info!("Starting file analysis for: {}", file_path);
+        info!("Content length: {} bytes", content.len());
         
-        let prompt = format!(
-            "Analyze this code file and provide a detailed analysis in JSON format. Include the following fields:\n\
-            - language: The programming language used\n\
-            - components: List of key components or functions\n\
-            - dependencies: List of external dependencies\n\
-            - recommendations: List of improvement suggestions\n\
-            - analysis_time: Current timestamp in ISO format\n\n\
-            File path: {}\n\n\
-            Code content:\n{}",
-            file_path, content
+        // Generate file purpose analysis
+        let purpose_prompt = format!(
+            "Analyze this code file and provide a brief explanation of its main purpose and contents. \
+             Focus on explaining what the file does in the context of the project. \
+             Keep the explanation concise but informative. \
+             IMPORTANT: Provide a direct, factual answer without any thinking process, internal monologue, or meta-commentary. \
+             Do not start with '<think>' or similar markers. \
+             Example format: 'This is a configuration file that...' or 'This file implements...'\n\
+             \nFile content:\n{}",
+            content
         );
 
-        let response = self.client
-            .post("https://openrouter.ai/api/v1/chat/completions")
-            .header("Authorization", format!("Bearer {}", self.api_key))
-            .header("HTTP-Referer", "https://github.com/yourusername/summeriq")
-            .header("X-Title", "SummerIQ")
-            .json(&json!({
-                "model": "anthropic/claude-3-opus:beta",
-                "messages": [
-                    {
-                        "role": "user",
-                        "content": prompt
-                    }
-                ],
-                "max_tokens": 299
-            }))
-            .send()
-            .await
-            .map_err(|e| {
-                error!("Failed to send request to OpenRouter API: {}", e);
-                AppError::AnalysisError("Failed to send request to AI service".into())
-            })?;
+        info!("Sending purpose analysis request");
+        let file_purpose = self.ai_service
+            .analyze_text(&purpose_prompt)
+            .await?;
+        info!("Received purpose analysis: {}", file_purpose);
 
-        let status = response.status();
-        if !status.is_success() {
-            let error_text = response.text().await.unwrap_or_else(|_| "Unknown error".to_string());
-            error!("AI service error: {} - {}", status, error_text);
-            return Err(AppError::AnalysisError(format!("AI service error: {}", status)));
-        }
-
-        let response_text = response.text().await.map_err(|e| {
-            error!("Failed to read response from OpenRouter API: {}", e);
-            AppError::AnalysisError("Failed to read response from AI service".into())
-        })?;
-
-        info!("Received response from OpenRouter API: {}", response_text);
-
-        // Parse the OpenRouter response format
-        let response_json: serde_json::Value = serde_json::from_str(&response_text).map_err(|e| {
-            error!("Failed to parse OpenRouter response: {}", e);
-            AppError::AnalysisError("Failed to parse AI service response".into())
-        })?;
-
-        // Extract the content from the response
-        let content = response_json["choices"][0]["message"]["content"]
-            .as_str()
-            .ok_or_else(|| {
-                error!("Invalid response format: missing content field");
-                AppError::AnalysisError("Invalid response format from AI service".into())
-            })?;
-
-        info!("Extracted content from response: {}", content);
-
-        // Clean up the content by removing any trailing incomplete JSON
-        let cleaned_content = if let Some(last_brace) = content.rfind('}') {
-            &content[..=last_brace]
-        } else {
+        // Generate dependencies analysis
+        let deps_prompt = format!(
+            "Analyze this code file and list all its dependencies (imports, requires, etc.). \
+             If there are no dependencies, just say 'No dependencies found.' \
+             Format each dependency on a new line, starting with a dash (-). \
+             For each dependency, include its purpose if it's not obvious from the name. \
+             IMPORTANT: Provide a direct, factual answer without any thinking process, internal monologue, or meta-commentary. \
+             Do not start with '<think>' or similar markers. \
+             Example format:\n\
+             - react: Frontend UI library\n\
+             - express: Web server framework\n\
+             No dependencies found\n\
+             \nFile content:\n{}",
             content
+        );
+
+        info!("Sending dependencies analysis request");
+        let dependencies_text = self.ai_service
+            .analyze_text(&deps_prompt)
+            .await?;
+        info!("Received dependencies analysis: {}", dependencies_text);
+
+        // Parse dependencies into a vector
+        let dependencies: Vec<String> = dependencies_text
+            .lines()
+            .filter(|line| line.trim().starts_with('-'))
+            .map(|line| line.trim_start_matches('-').trim().to_string())
+            .collect();
+
+        info!("No dependencies found in the file");
+
+        // Detect language from file extension
+        let language = Path::new(file_path)
+            .extension()
+            .and_then(|ext| ext.to_str())
+            .unwrap_or("unknown")
+            .to_string();
+
+        info!("Detected language: {}", language);
+
+        let analysis = FileAnalysis {
+            language,
+            file_purpose,
+            dependencies,
+            analysis_time: Utc::now().to_rfc3339(),
+            contents: content.to_string(),
         };
 
-        // Parse the analysis content
-        let mut analysis: FileAnalysis = serde_json::from_str(cleaned_content).map_err(|e| {
-            error!("Failed to parse analysis JSON: {}", e);
-            AppError::AnalysisError("Failed to parse analysis from AI service".into())
-        })?;
-
-        // Ensure analysis_time is set
-        if analysis.analysis_time.is_empty() {
-            analysis.analysis_time = Utc::now().to_rfc3339();
-        }
-
+        info!("Analysis complete: {:?}", analysis);
         Ok(analysis)
     }
 } 
