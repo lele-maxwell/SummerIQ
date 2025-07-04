@@ -52,7 +52,7 @@ async fn main() -> std::io::Result<()> {
     let storage_service = StorageService::new(config.storage_path.clone());
     let storage_service_data = web::Data::new(storage_service.clone());
     
-    let ai_service = AIService::new(config.groq_api_key.clone());
+    let ai_service = AIService::new(config.groq_api_key.clone(), config.post_request_delay_ms);
     let ai_service_data = web::Data::new(ai_service.clone());
     
     let analysis_service = web::Data::new(AnalysisService::new(
