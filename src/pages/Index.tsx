@@ -48,6 +48,9 @@ const Index = ({ isAuthenticated, onLogin, onLogout }: IndexProps) => {
     setSelectedFile(null);
     setSelectedFilePath("");
     setFileStructure(null);
+    // Clear upload info from localStorage
+    localStorage.removeItem('uploadedFileName');
+    localStorage.removeItem('fileStructure');
   };
   
   const handleUploadComplete = (response: UploadResponse) => {

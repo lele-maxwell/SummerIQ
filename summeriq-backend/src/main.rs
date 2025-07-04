@@ -18,6 +18,7 @@ mod handlers;
 use routes::auth;
 use routes::upload;
 use routes::analysis;
+use routes::documentation;
 
 use config::Config;
 use services::{StorageService, AnalysisService, AIService, AuthService};
@@ -51,7 +52,7 @@ async fn main() -> std::io::Result<()> {
     let storage_service = StorageService::new(config.storage_path.clone());
     let storage_service_data = web::Data::new(storage_service.clone());
     
-    let ai_service = AIService::new(config.groq_api_key.clone());
+    let ai_service = AIService::new(config.groq_api_key.clone(), config.post_request_delay_ms);
     let ai_service_data = web::Data::new(ai_service.clone());
     
     let analysis_service = web::Data::new(AnalysisService::new(
@@ -96,6 +97,7 @@ async fn main() -> std::io::Result<()> {
                         web::scope("/analysis")
                             .route("/file/{path:.*}", web::get().to(routes::analysis::analyze_file))
                     )
+                    .configure(documentation::configure)
             )
     })
     .bind(("127.0.0.1", config.server_port))?

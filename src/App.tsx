@@ -6,6 +6,7 @@ import Index from "./pages/Index";
 import Dashboard from "./pages/Dashboard";
 import About from "./pages/About";
 import NotFound from "./pages/NotFound";
+import Architecture from "./pages/Architecture";
 
 const queryClient = new QueryClient();
 
@@ -17,11 +18,25 @@ const App = () => {
 
   const handleLogin = () => {
     setIsAuthenticated(true);
+    // Clear all project data and cache on login
+    localStorage.removeItem('uploadedFileName');
+    localStorage.removeItem('fileStructure');
+    Object.keys(localStorage).forEach(key => {
+      if (key.startsWith('projectDocCache_')) {
+        localStorage.removeItem(key);
+      }
+    });
   };
 
   const handleLogout = () => {
     setIsAuthenticated(false);
     localStorage.removeItem('token');
+    // Clear all project documentation cache
+    Object.keys(localStorage).forEach(key => {
+      if (key.startsWith('projectDocCache_')) {
+        localStorage.removeItem(key);
+      }
+    });
   };
 
   return (
@@ -61,6 +76,10 @@ const App = () => {
                   onLogout={handleLogout}
                 />
               } 
+            />
+            <Route 
+              path="/architecture" 
+              element={<Architecture />} 
             />
             <Route path="*" element={<NotFound />} />
           </Routes>

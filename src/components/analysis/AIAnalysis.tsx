@@ -199,7 +199,7 @@ export function AIAnalysis({ filePath, fileName }: AIAnalysisProps) {
               </div>
             )}
           </TabsContent>
-
+          
           <TabsContent value="dependencies" className="space-y-4">
             {analysisLoading ? (
               <div className="space-y-2">
@@ -237,10 +237,10 @@ export function AIAnalysis({ filePath, fileName }: AIAnalysisProps) {
                             <Badge variant="secondary" className="mt-1">Dependency</Badge>
                             <div>
                               <p className="text-sm">{dep}</p>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
+                  </div>
+                </div>
+              ))}
+            </div>
                     ) : (
                       <p className="text-muted-foreground">No dependencies found</p>
                     )}

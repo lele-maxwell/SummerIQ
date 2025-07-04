@@ -4,6 +4,7 @@ use sqlx::Error as SqlxError;
 use std::io::Error as IoError;
 use actix_multipart::MultipartError;
 use zip::result::ZipError;
+use serde_json;
 
 #[derive(Error, Debug)]
 pub enum AppError {
@@ -23,12 +24,18 @@ pub enum AppError {
 impl ResponseError for AppError {
     fn error_response(&self) -> HttpResponse {
         match self {
-            AppError::InternalServerError(_) => {
-                HttpResponse::InternalServerError().json("Internal Server Error")
+            AppError::InternalServerError(ref message) => {
+                HttpResponse::InternalServerError().json(serde_json::json!({ "error": message }))
             }
-            AppError::BadRequest(ref message) => HttpResponse::BadRequest().json(message),
-            AppError::AuthenticationError(ref message) => HttpResponse::Unauthorized().json(message),
-            AppError::UploadError(ref message) => HttpResponse::BadRequest().json(message),
+            AppError::BadRequest(ref message) => {
+                HttpResponse::BadRequest().json(serde_json::json!({ "error": message }))
+            }
+            AppError::AuthenticationError(ref message) => {
+                HttpResponse::Unauthorized().json(serde_json::json!({ "error": message }))
+            }
+            AppError::UploadError(ref message) => {
+                HttpResponse::BadRequest().json(serde_json::json!({ "error": message }))
+            }
         }
     }
 }

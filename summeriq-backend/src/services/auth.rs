@@ -75,7 +75,7 @@ impl AuthService {
         Ok((user, token))
     }
 
-    fn generate_token(&self, user: &User) -> Result<String, AppError> {
+    pub fn generate_token(&self, user: &User) -> Result<String, AppError> {
         let expiration = chrono::Utc::now()
             .checked_add_signed(chrono::Duration::hours(24))
             .expect("valid timestamp")

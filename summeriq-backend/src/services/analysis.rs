@@ -8,8 +8,11 @@ use serde_json::json;
 use std::fs;
 use crate::services::StorageService;
 use crate::services::ai::AIService;
+use dashmap::DashMap;
+use once_cell::sync::Lazy;
+use sha2::{Sha256, Digest};
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct FileAnalysis {
     pub language: String,
     pub file_purpose: String,
@@ -25,6 +28,9 @@ pub struct AnalysisService {
     ai_service: AIService,
 }
 
+// Global cache: key = hash(file_path + content), value = FileAnalysis
+static FILE_ANALYSIS_CACHE: Lazy<DashMap<String, FileAnalysis>> = Lazy::new(DashMap::new);
+
 impl AnalysisService {
     pub fn new(api_key: String, storage_service: StorageService, ai_service: AIService) -> Self {
         info!("Initializing AnalysisService");
@@ -37,6 +43,17 @@ impl AnalysisService {
     }
 
     pub async fn analyze_file(&self, file_path: &str, content: &str) -> Result<FileAnalysis, AppError> {
+        // Compute hash of file_path + content for cache key
+        let mut hasher = Sha256::new();
+        hasher.update(file_path.as_bytes());
+        hasher.update(content.as_bytes());
+        let hash = format!("{:x}", hasher.finalize());
+        // Check cache
+        if let Some(cached) = FILE_ANALYSIS_CACHE.get(&hash) {
+            info!("Cache hit for file analysis: {}", file_path);
+            return Ok(cached.clone());
+        }
+        info!("Cache miss for file analysis: {}", file_path);
         info!("Starting file analysis for: {}", file_path);
         info!("Content length: {} bytes", content.len());
         
@@ -105,7 +122,8 @@ impl AnalysisService {
             analysis_time: Utc::now().to_rfc3339(),
             contents: content.to_string(),
         };
-
+        // Store in cache
+        FILE_ANALYSIS_CACHE.insert(hash, analysis.clone());
         info!("Analysis complete: {:?}", analysis);
         Ok(analysis)
     }
