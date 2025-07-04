@@ -51,6 +51,12 @@ const Index = ({ isAuthenticated, onLogin, onLogout }: IndexProps) => {
     // Clear upload info from localStorage
     localStorage.removeItem('uploadedFileName');
     localStorage.removeItem('fileStructure');
+    // Clear all project documentation cache
+    Object.keys(localStorage).forEach(key => {
+      if (key.startsWith('projectDocCache_')) {
+        localStorage.removeItem(key);
+      }
+    });
   };
   
   const handleUploadComplete = (response: UploadResponse) => {

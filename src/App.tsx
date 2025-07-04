@@ -23,6 +23,12 @@ const App = () => {
   const handleLogout = () => {
     setIsAuthenticated(false);
     localStorage.removeItem('token');
+    // Clear all project documentation cache
+    Object.keys(localStorage).forEach(key => {
+      if (key.startsWith('projectDocCache_')) {
+        localStorage.removeItem(key);
+      }
+    });
   };
 
   return (
