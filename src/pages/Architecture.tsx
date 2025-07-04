@@ -7,7 +7,6 @@ import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
 import 'highlight.js/styles/github.css';
 import MermaidRenderer from '@/components/MermaidRenderer';
-// import remarkMermaid from 'remark-mermaidjs'; // Will be added after install
 
 // Custom renderer for code blocks to support Mermaid diagrams
 const renderers = {
@@ -60,9 +59,28 @@ const Architecture = () => {
     if (storedFileName) setUploadedFileName(storedFileName);
     setIsLoading(true);
     setError("");
+
+    // LocalStorage cache key
+    const cacheKey = storedFileName ? `projectDocCache_${storedFileName}` : null;
+    if (cacheKey) {
+      const cached = localStorage.getItem(cacheKey);
+      if (cached) {
+        try {
+          setProjectDoc(JSON.parse(cached));
+          setIsLoading(false);
+          return;
+        } catch (e) {
+          // If cache is corrupted, ignore and fetch from API
+        }
+      }
+    }
+
     documentationApi.getProjectDocumentation(storedFileName || "current")
       .then((doc: ProjectDocumentation) => {
         setProjectDoc(doc);
+        if (cacheKey) {
+          localStorage.setItem(cacheKey, JSON.stringify(doc));
+        }
       })
       .catch(() => {
         setError("Failed to load project documentation. Please try again later.");
@@ -117,6 +135,15 @@ const Architecture = () => {
 
   return (
     <div className="container mx-auto py-12"> 
+      {/* Back to Dashboard button */}
+      <div className="mb-6 flex justify-start">
+        <a
+          href="/dashboard"
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gray-200 text-gray-800 font-semibold shadow hover:bg-gray-300 transition-colors duration-200"
+        >
+          ← Back to Dashboard
+        </a>
+      </div>
       <div className="flex justify-between items-center mb-8">
         <h1 className="text-4xl font-bold text-center w-full">Project Architecture: {projectDoc.project_name || uploadedFileName}</h1>
         <div className="flex gap-2 ml-4">
