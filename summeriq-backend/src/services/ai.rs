@@ -16,14 +16,16 @@ static AI_THROTTLE: Lazy<Arc<Mutex<()>>> = Lazy::new(|| Arc::new(Mutex::new(()))
 pub struct AIService {
     client: Client,
     api_key: String,
+    post_request_delay_ms: u64,
 }
 
 impl AIService {
-    pub fn new(api_key: String) -> Self {
+    pub fn new(api_key: String, post_request_delay_ms: u64) -> Self {
         info!("Initializing AIService with API key: {}...", api_key.chars().take(4).collect::<String>());
         Self {
             client: Client::new(),
             api_key,
+            post_request_delay_ms,
         }
     }
 
@@ -97,8 +99,8 @@ impl AIService {
                     error!("Invalid response format from AI service");
                     AppError::InternalServerError("Invalid response from AI service".to_string())
                 })?;
-            // Add a 3-second delay after every successful AI call
-            tokio::time::sleep(std::time::Duration::from_secs(3)).await;
+            // Add a configurable delay after every successful AI call
+            tokio::time::sleep(std::time::Duration::from_millis(self.post_request_delay_ms)).await;
             return Ok(content.to_string());
         }
     }
