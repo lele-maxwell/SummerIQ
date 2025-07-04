@@ -24,13 +24,8 @@ const MermaidRenderer: React.FC<MermaidRendererProps> = ({ chart, name, config }
   if (config) mermaidProps.config = config;
 
   return (
-    <div
-      className="flex justify-center items-center bg-white p-6 rounded-lg shadow-lg"
-      style={{ minHeight: 400, width: '100%', maxWidth: '100%', overflowX: 'auto' }}
-    >
-      <div style={{ minWidth: 600, width: '100%', maxWidth: 1200 }}>
-        <Mermaid {...mermaidProps} />
-      </div>
+    <div className="overflow-x-auto bg-white p-4 rounded-lg min-h-[400px] w-full max-w-4xl mx-auto flex items-center justify-center">
+      <Mermaid {...mermaidProps} />
     </div>
   );
 };
