@@ -47,6 +47,12 @@ function extractMermaidDiagram(text: string): string | null {
   return null;
 }
 
+// Helper to apply theme
+function applyTheme(isDark: boolean) {
+  document.documentElement.classList.remove('dark', 'light');
+  document.documentElement.classList.add(isDark ? 'dark' : 'light');
+}
+
 const Architecture = () => {
   const [projectDoc, setProjectDoc] = useState<ProjectDocumentation | null>(null);
   const [uploadedFileName, setUploadedFileName] = useState<string>("");
@@ -87,14 +93,12 @@ const Architecture = () => {
       })
       .finally(() => setIsLoading(false));
     // Set initial theme on mount
-    document.documentElement.classList.remove('dark', 'light');
-    document.documentElement.classList.add(darkMode ? 'dark' : 'light');
+    applyTheme(darkMode);
   }, []);
 
   // Update theme when darkMode changes
   useEffect(() => {
-    document.documentElement.classList.remove('dark', 'light');
-    document.documentElement.classList.add(darkMode ? 'dark' : 'light');
+    applyTheme(darkMode);
   }, [darkMode]);
 
   const handleDownload = () => {
@@ -205,16 +209,16 @@ const Architecture = () => {
           This section explains the purpose of each major folder and file in your uploaded project. Understanding this structure will help you navigate, learn, and contribute with confidence.
         </p>
         <div className="space-y-6">
-          {projectDoc.file_analyses && projectDoc.file_analyses.map((file) => (
+          {projectDoc?.file_analyses?.map((file) => (
             <div key={file.path} className="bg-card rounded-lg p-4 shadow">
               <h3 className="text-lg font-bold">{file.path}</h3>
               <ul className="list-disc pl-6 text-muted-foreground mb-2">
                 <li>{file.name}</li>
                 <li>{file.description}</li>
-                {file.dependencies && file.dependencies.length > 0 && (
+                {file.dependencies?.length > 0 && (
                   <li><strong>Dependencies:</strong> {file.dependencies.join(", ")}</li>
                 )}
-                {file.relationships && file.relationships.length > 0 && (
+                {file.relationships?.length > 0 && (
                   <li><strong>Relationships:</strong>
                     <ul className="list-disc pl-6">
                       {file.relationships.map((rel, idx) => (
@@ -233,7 +237,7 @@ const Architecture = () => {
       <div className="doc-section-card mb-12">
         <h2 className="text-2xl font-semibold mb-2">Project Dependencies</h2>
         <ul className="list-disc pl-6 text-muted-foreground mb-4">
-          {projectDoc.dependencies && projectDoc.dependencies.length > 0 ? (
+          {projectDoc?.dependencies?.length > 0 ? (
             projectDoc.dependencies.map((dep, idx) => (
               <li key={idx}>{dep}</li>
             ))
@@ -248,7 +252,7 @@ const Architecture = () => {
         <h2 className="text-2xl font-semibold mb-2">Setup Instructions</h2>
         <div className="documentation-markdown text-muted-foreground mb-4">
           <ReactMarkdown
-            children={projectDoc.setup_instructions || 'No setup instructions available.'}
+            children={projectDoc?.setup_instructions || 'No setup instructions available.'}
             remarkPlugins={[remarkGfm /*, remarkMermaid */]}
             rehypePlugins={[rehypeHighlight]}
           />

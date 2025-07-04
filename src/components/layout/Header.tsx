@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 
 interface HeaderProps {
   isAuthenticated: boolean;
-  onLogin: () => void;
+  onLogin?: () => void;
   onLogout: () => void;
 }
 
