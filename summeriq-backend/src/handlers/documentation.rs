@@ -131,7 +131,7 @@ You are an expert technical writer and software architect. Here is the file and 
 
 {structure}
 
-Please give a high-level architectural overview of how the folders and files relate to each other. Focus on helping a junior developer understand how this is structured and why. Include a diagram (ASCII or Mermaid if possible) that visually represents the architecture. Be concise, explicit, and do not use meta language, markdown formatting, or explanations—output only the content and diagram.
+Please give a high-level architectural overview of how the folders and files relate to each other. Focus on helping a junior developer understand how this is structured and why. If you include a Mermaid diagram, ALWAYS wrap it in a code block using triple backticks and the word 'mermaid' (like this: ```mermaid ... ```), with no extra text before or after the code block. Do not use meta language or explanations—output only the content and diagram.
 "#,
         structure = structure
     );

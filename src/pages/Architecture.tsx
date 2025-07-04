@@ -26,23 +26,19 @@ function extractMermaidDiagram(text: string): string | null {
   if (codeBlockMatch) {
     return codeBlockMatch[1].trim();
   }
-  // Fallback: find a line starting with 'graph ' or 'flowchart '
-  const graphMatch = text.match(/^(graph|flowchart)\s[\s\S]*/m);
-  if (graphMatch) {
-    // Get all lines starting with graph/flowchart and following indented lines
-    const lines = text.split('\n');
-    const startIdx = lines.findIndex(line => line.trim().startsWith('graph ') || line.trim().startsWith('flowchart '));
-    if (startIdx !== -1) {
-      let diagram = lines[startIdx];
-      for (let i = startIdx + 1; i < lines.length; i++) {
-        if (lines[i].trim() === '' || lines[i].startsWith(' ') || lines[i].startsWith('\t')) {
-          diagram += '\n' + lines[i];
-        } else {
-          break;
-        }
+  // Fallback: find the first occurrence of 'graph' or 'flowchart' and collect until a blank line or a line starting with a non-indented character
+  const lines = text.split('\n');
+  let startIdx = lines.findIndex(line => line.trim().startsWith('graph ') || line.trim().startsWith('flowchart '));
+  if (startIdx !== -1) {
+    let diagram = lines[startIdx];
+    for (let i = startIdx + 1; i < lines.length; i++) {
+      // Stop at blank line or a line that looks like a new section (not indented and not part of the diagram)
+      if (lines[i].trim() === '' || /^[A-Za-z0-9#*_\-]/.test(lines[i])) {
+        break;
       }
-      return diagram.trim();
+      diagram += '\n' + lines[i];
     }
+    return diagram.trim();
   }
   return null;
 }
@@ -102,6 +98,7 @@ const Architecture = () => {
   }, [darkMode]);
 
   const handleDownload = () => {
+    // TODO: Implement download functionality for project documentation above the alert in handleDownload
     alert("Download functionality coming soon!");
   };
 
