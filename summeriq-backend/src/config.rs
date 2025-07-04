@@ -12,6 +12,7 @@ pub struct Config {
     pub groq_api_key: String,
     pub server_port: u16,
     pub upload_dir: String,
+    pub post_request_delay_ms: u64,
 }
 
 impl Config {
@@ -29,6 +30,7 @@ impl Config {
                 .parse()
                 .expect("SERVER_PORT must be a number"),
             upload_dir: storage_path,
+            post_request_delay_ms: env::var("POST_REQUEST_DELAY_MS").unwrap_or_else(|_| "3000".to_string()).parse().unwrap_or(3000),
         }
     }
 }
