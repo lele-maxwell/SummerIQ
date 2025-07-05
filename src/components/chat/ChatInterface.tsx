@@ -34,11 +34,30 @@ export function ChatInterface({
   selectedFilePath = "",
   selectedFileName = ""
 }: ChatInterfaceProps) {
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      id: 1,
-      sender: "ai",
-      text: `Hi there! I'm your AI assistant for the "${projectName}" project. I can help you understand the codebase, explain functionality, suggest improvements, and answer any questions you have about the project.
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [newMessage, setNewMessage] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
+  const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Load messages from localStorage on component mount
+  useEffect(() => {
+    const savedMessages = localStorage.getItem(`chat_messages_${projectName}`);
+    if (savedMessages) {
+      try {
+        const parsedMessages = JSON.parse(savedMessages);
+        // Convert timestamp strings back to Date objects
+        const messagesWithDates = parsedMessages.map((msg: any) => ({
+          ...msg,
+          timestamp: new Date(msg.timestamp)
+        }));
+        setMessages(messagesWithDates);
+      } catch (error) {
+        console.error('Error loading chat messages:', error);
+        // If there's an error loading, start with the default welcome message
+        setMessages([{
+          id: 1,
+          sender: "ai",
+          text: `Hi there! I'm your AI assistant for the "${projectName}" project. I can help you understand the codebase, explain functionality, suggest improvements, and answer any questions you have about the project.
 
 Here are some things you can ask me about:
 • Code structure and architecture
@@ -50,12 +69,37 @@ Here are some things you can ask me about:
 • Security considerations
 
 Feel free to ask me anything!`,
-      timestamp: new Date(),
-    },
-  ]);
-  const [newMessage, setNewMessage] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+          timestamp: new Date(),
+        }]);
+      }
+    } else {
+      // No saved messages, start with the default welcome message
+      setMessages([{
+        id: 1,
+        sender: "ai",
+        text: `Hi there! I'm your AI assistant for the "${projectName}" project. I can help you understand the codebase, explain functionality, suggest improvements, and answer any questions you have about the project.
+
+Here are some things you can ask me about:
+• Code structure and architecture
+• Function and class explanations
+• Best practices and improvements
+• Dependencies and libraries
+• File relationships and imports
+• Performance optimizations
+• Security considerations
+
+Feel free to ask me anything!`,
+        timestamp: new Date(),
+      }]);
+    }
+  }, [projectName]);
+
+  // Save messages to localStorage whenever messages change
+  useEffect(() => {
+    if (messages.length > 0) {
+      localStorage.setItem(`chat_messages_${projectName}`, JSON.stringify(messages));
+    }
+  }, [messages, projectName]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -119,12 +163,45 @@ Feel free to ask me anything!`,
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
+  const clearChat = () => {
+    setMessages([{
+      id: 1,
+      sender: "ai",
+      text: `Hi there! I'm your AI assistant for the "${projectName}" project. I can help you understand the codebase, explain functionality, suggest improvements, and answer any questions you have about the project.
+
+Here are some things you can ask me about:
+• Code structure and architecture
+• Function and class explanations
+• Best practices and improvements
+• Dependencies and libraries
+• File relationships and imports
+• Performance optimizations
+• Security considerations
+
+Feel free to ask me anything!`,
+      timestamp: new Date(),
+    }]);
+    localStorage.removeItem(`chat_messages_${projectName}`);
+  };
+
   return (
     <Card className="flex flex-col h-full">
       <CardHeader className="pb-3 pt-3">
-        <div className="flex items-center">
-          <BrainCogIcon className="h-5 w-5 text-zipmind-400 mr-2" />
-          <h3 className="font-semibold">Project Assistant</h3>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center">
+            <BrainCogIcon className="h-5 w-5 text-zipmind-400 mr-2" />
+            <h3 className="font-semibold">Project Assistant</h3>
+          </div>
+          {messages.length > 1 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={clearChat}
+              className="text-xs text-muted-foreground hover:text-foreground"
+            >
+              Clear Chat
+            </Button>
+          )}
         </div>
         {selectedFileName && (
           <p className="text-xs text-muted-foreground">
