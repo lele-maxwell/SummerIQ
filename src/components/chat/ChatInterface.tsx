@@ -1,4 +1,3 @@
-
 import { useState, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
@@ -6,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar } from "@/components/ui/avatar";
 import { BrainCogIcon, SendIcon, Loader2Icon, UserIcon } from "lucide-react";
+import { sendChatMessage } from "@/api/chat";
 
 interface Message {
   id: number;
@@ -16,14 +16,40 @@ interface Message {
 
 interface ChatInterfaceProps {
   projectName?: string;
+  selectedFilePath?: string;
+  selectedFileName?: string;
 }
 
-export function ChatInterface({ projectName = "Demo Project" }: ChatInterfaceProps) {
+const QUICK_SUGGESTIONS = [
+  "What is the main purpose of this project?",
+  "Explain the project structure",
+  "What are the key dependencies?",
+  "How does the authentication work?",
+  "Show me the API endpoints",
+  "What are the best practices used here?"
+];
+
+export function ChatInterface({ 
+  projectName = "Demo Project",
+  selectedFilePath = "",
+  selectedFileName = ""
+}: ChatInterfaceProps) {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: 1,
       sender: "ai",
-      text: "Hi there! I've analyzed your project. Feel free to ask me any questions about the code, structure, or functionality.",
+      text: `Hi there! I'm your AI assistant for the "${projectName}" project. I can help you understand the codebase, explain functionality, suggest improvements, and answer any questions you have about the project.
+
+Here are some things you can ask me about:
+• Code structure and architecture
+• Function and class explanations
+• Best practices and improvements
+• Dependencies and libraries
+• File relationships and imports
+• Performance optimizations
+• Security considerations
+
+Feel free to ask me anything!`,
       timestamp: new Date(),
     },
   ]);
@@ -39,9 +65,9 @@ export function ChatInterface({ projectName = "Demo Project" }: ChatInterfacePro
     scrollToBottom();
   }, [messages]);
 
-  const handleSend = (e: React.FormEvent) => {
+  const handleSend = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newMessage.trim()) return;
+    if (!newMessage.trim() || isLoading) return;
     
     const userMessage: Message = {
       id: messages.length + 1,
@@ -51,36 +77,42 @@ export function ChatInterface({ projectName = "Demo Project" }: ChatInterfacePro
     };
     
     setMessages([...messages, userMessage]);
+    const currentMessage = newMessage;
     setNewMessage("");
     setIsLoading(true);
     
-    // Simulate AI response with sample responses based on keywords
-    setTimeout(() => {
-      const lowerCaseMessage = newMessage.toLowerCase();
-      let aiResponseText = "I'm not sure how to answer that question. Could you provide more details about what you're looking for?";
+    try {
+      // Get authentication token
+      const token = localStorage.getItem('token');
       
-      if (lowerCaseMessage.includes("main") || lowerCaseMessage.includes("purpose")) {
-        aiResponseText = `This project appears to be a file analysis system. The main entry point is in src/main.rs, which initializes the web server and database connection. The core functionality is implemented in the routes/ and models/ folders.`;
-      } else if (lowerCaseMessage.includes("auth") || lowerCaseMessage.includes("login")) {
-        aiResponseText = `The authentication system is implemented in src/routes/auth.rs. It uses JWT tokens for session management and bcrypt for password hashing. The login route validates credentials against the database and returns a signed token.`;
-      } else if (lowerCaseMessage.includes("file") || lowerCaseMessage.includes("upload")) {
-        aiResponseText = `File uploads are handled in src/routes/upload.rs. It accepts zip files, stores them in MinIO, and then processes each file for analysis. The supported file types include Rust, Python, JavaScript, and Markdown.`;
-      } else if (lowerCaseMessage.includes("database") || lowerCaseMessage.includes("storage")) {
-        aiResponseText = `The project uses PostgreSQL for storing user data, file metadata, and analysis results. There's also MinIO integration for storing the actual zip files. The database schema includes tables for users, sessions, uploads, and files.`;
-      } else if (lowerCaseMessage.includes("api") || lowerCaseMessage.includes("endpoint")) {
-        aiResponseText = `The API has several endpoints:\n- POST /auth/register: Create new user\n- POST /auth/login: Authenticate user\n- POST /upload: Upload zip file\n- GET /files/:id: Get file details\n- POST /chat: Ask questions about files`;
-      }
+      const response = await sendChatMessage(
+        currentMessage, 
+        token || undefined,
+        projectName,
+        selectedFileName,
+        selectedFilePath
+      );
       
       const aiResponse: Message = {
         id: messages.length + 2,
         sender: "ai",
-        text: aiResponseText,
+        text: response.response,
         timestamp: new Date(),
       };
       
       setMessages((prevMessages) => [...prevMessages, aiResponse]);
+    } catch (error) {
+      console.error('Chat error:', error);
+      const errorMessage: Message = {
+        id: messages.length + 2,
+        sender: "ai",
+        text: "I'm sorry, I encountered an error while processing your request. Please try again or check your connection.",
+        timestamp: new Date(),
+      };
+      setMessages((prevMessages) => [...prevMessages, errorMessage]);
+    } finally {
       setIsLoading(false);
-    }, 1500);
+    }
   };
 
   const formatTimestamp = (date: Date) => {
@@ -94,6 +126,11 @@ export function ChatInterface({ projectName = "Demo Project" }: ChatInterfacePro
           <BrainCogIcon className="h-5 w-5 text-zipmind-400 mr-2" />
           <h3 className="font-semibold">Project Assistant</h3>
         </div>
+        {selectedFileName && (
+          <p className="text-xs text-muted-foreground">
+            Currently viewing: {selectedFileName}
+          </p>
+        )}
       </CardHeader>
       <CardContent className="flex-grow overflow-hidden p-0">
         <ScrollArea className="h-full p-4">
@@ -133,6 +170,67 @@ export function ChatInterface({ projectName = "Demo Project" }: ChatInterfacePro
                 </div>
               </div>
             ))}
+            
+            {/* Quick Suggestions */}
+            {messages.length === 1 && (
+              <div className="flex flex-wrap gap-2 mt-4">
+                {QUICK_SUGGESTIONS.map((suggestion, index) => (
+                  <Button
+                    key={index}
+                    variant="outline"
+                    size="sm"
+                    className="text-xs"
+                    onClick={() => {
+                      setNewMessage(suggestion);
+                      // Auto-send the suggestion after a brief delay
+                      setTimeout(() => {
+                        const userMessage: Message = {
+                          id: messages.length + 1,
+                          sender: "user",
+                          text: suggestion,
+                          timestamp: new Date(),
+                        };
+                        
+                        setMessages([...messages, userMessage]);
+                        setNewMessage("");
+                        setIsLoading(true);
+                        
+                        // Send the message
+                        sendChatMessage(
+                          suggestion, 
+                          localStorage.getItem('token') || undefined,
+                          projectName,
+                          selectedFileName,
+                          selectedFilePath
+                        ).then(response => {
+                          const aiResponse: Message = {
+                            id: messages.length + 2,
+                            sender: "ai",
+                            text: response.response,
+                            timestamp: new Date(),
+                          };
+                          setMessages((prevMessages) => [...prevMessages, aiResponse]);
+                        }).catch(error => {
+                          console.error('Chat error:', error);
+                          const errorMessage: Message = {
+                            id: messages.length + 2,
+                            sender: "ai",
+                            text: "I'm sorry, I encountered an error while processing your request. Please try again or check your connection.",
+                            timestamp: new Date(),
+                          };
+                          setMessages((prevMessages) => [...prevMessages, errorMessage]);
+                        }).finally(() => {
+                          setIsLoading(false);
+                        });
+                      }, 100);
+                    }}
+                  >
+                    {suggestion}
+                  </Button>
+                ))}
+              </div>
+            )}
+            
             {isLoading && (
               <div className="flex justify-start">
                 <div className="flex gap-3 max-w-[80%]">
