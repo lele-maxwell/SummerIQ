@@ -19,6 +19,7 @@ use routes::auth;
 use routes::upload;
 use routes::analysis;
 use routes::documentation;
+use routes::chat;
 
 use config::Config;
 use services::{StorageService, AnalysisService, AIService, AuthService};
@@ -96,6 +97,10 @@ async fn main() -> std::io::Result<()> {
                     .service(
                         web::scope("/analysis")
                             .route("/file/{path:.*}", web::get().to(routes::analysis::analyze_file))
+                    )
+                    .service(
+                        web::scope("/chat")
+                            .route("", web::post().to(chat::chat))
                     )
                     .configure(documentation::configure)
             )
