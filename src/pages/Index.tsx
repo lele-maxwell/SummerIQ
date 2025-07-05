@@ -145,7 +145,11 @@ const Index = ({ isAuthenticated, onLogin, onLogout }: IndexProps) => {
             
             <ResizablePanel defaultSize={30} minSize={20}>
               <div className="h-full">
-                <ChatInterface projectName={uploadedFileName} />
+                <ChatInterface 
+                  projectName={uploadedFileName} 
+                  selectedFileName={selectedFile?.name}
+                  selectedFilePath={selectedFilePath}
+                />
               </div>
             </ResizablePanel>
           </ResizablePanelGroup>
