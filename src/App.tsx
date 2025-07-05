@@ -16,6 +16,14 @@ const App = () => {
     return token !== null && token !== '';
   });
 
+  const clearChatSessions = () => {
+    Object.keys(localStorage).forEach(key => {
+      if (key.startsWith('chat_messages_')) {
+        localStorage.removeItem(key);
+      }
+    });
+  };
+
   const handleLogin = () => {
     setIsAuthenticated(true);
     // Clear all project data and cache on login
@@ -26,6 +34,8 @@ const App = () => {
         localStorage.removeItem(key);
       }
     });
+    // Clear all chat sessions for a clean slate
+    clearChatSessions();
   };
 
   const handleLogout = () => {
@@ -37,6 +47,8 @@ const App = () => {
         localStorage.removeItem(key);
       }
     });
+    // Clear all chat sessions
+    clearChatSessions();
   };
 
   return (
