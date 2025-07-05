@@ -11,6 +11,7 @@ use crate::services::ai::AIService;
 use dashmap::DashMap;
 use once_cell::sync::Lazy;
 use sha2::{Sha256, Digest};
+use regex;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct FileAnalysis {
@@ -30,6 +31,39 @@ pub struct AnalysisService {
 
 // Global cache: key = hash(file_path + content), value = FileAnalysis
 static FILE_ANALYSIS_CACHE: Lazy<DashMap<String, FileAnalysis>> = Lazy::new(DashMap::new);
+
+// Helper function to clean up AI responses by removing thinking process markers
+fn clean_ai_response(response: &str) -> String {
+    let mut cleaned = response.to_string();
+    
+    // Remove <think>...</think> blocks
+    let think_pattern = regex::Regex::new(r#"<think>.*?</think>"#).unwrap();
+    cleaned = think_pattern.replace_all(&cleaned, "").to_string();
+    
+    // Remove <reasoning>...</reasoning> blocks
+    let reasoning_pattern = regex::Regex::new(r#"<reasoning>.*?</reasoning>"#).unwrap();
+    cleaned = reasoning_pattern.replace_all(&cleaned, "").to_string();
+    
+    // Remove <analysis>...</analysis> blocks
+    let analysis_pattern = regex::Regex::new(r#"<analysis>.*?</analysis>"#).unwrap();
+    cleaned = analysis_pattern.replace_all(&cleaned, "").to_string();
+    
+    // Remove any remaining thinking markers at the start
+    let thinking_start_pattern = regex::Regex::new(r#"^<[^>]*>.*?</[^>]*>\s*"#).unwrap();
+    cleaned = thinking_start_pattern.replace_all(&cleaned, "").to_string();
+    
+    // Clean up extra whitespace and newlines
+    cleaned = cleaned.trim().to_string();
+    
+    // Remove any leading/trailing whitespace and normalize newlines
+    cleaned = cleaned.lines()
+        .map(|line| line.trim())
+        .filter(|line| !line.is_empty())
+        .collect::<Vec<_>>()
+        .join("\n");
+    
+    cleaned
+}
 
 impl AnalysisService {
     pub fn new(api_key: String, storage_service: StorageService, ai_service: AIService) -> Self {
@@ -62,8 +96,10 @@ impl AnalysisService {
             "Analyze this code file and provide a brief explanation of its main purpose and contents. \
              Focus on explaining what the file does in the context of the project. \
              Keep the explanation concise but informative. \
-             IMPORTANT: Provide a direct, factual answer without any thinking process, internal monologue, or meta-commentary. \
-             Do not start with '<think>' or similar markers. \
+             CRITICAL: Provide ONLY a direct, factual answer. Do NOT include any thinking process, internal monologue, reasoning steps, or meta-commentary. \
+             Do NOT start with '<think>', '<reasoning>', or any similar markers. \
+             Do NOT explain your analysis process. \
+             Simply state what the file is and what it does. \
              Example format: 'This is a configuration file that...' or 'This file implements...'\n\
              \nFile content:\n{}",
             content
@@ -81,8 +117,10 @@ impl AnalysisService {
              If there are no dependencies, just say 'No dependencies found.' \
              Format each dependency on a new line, starting with a dash (-). \
              For each dependency, include its purpose if it's not obvious from the name. \
-             IMPORTANT: Provide a direct, factual answer without any thinking process, internal monologue, or meta-commentary. \
-             Do not start with '<think>' or similar markers. \
+             CRITICAL: Provide ONLY a direct, factual answer. Do NOT include any thinking process, internal monologue, reasoning steps, or meta-commentary. \
+             Do NOT start with '<think>', '<reasoning>', or any similar markers. \
+             Do NOT explain your analysis process. \
+             Simply list the dependencies or state 'No dependencies found.' \
              Example format:\n\
              - react: Frontend UI library\n\
              - express: Web server framework\n\
@@ -97,14 +135,15 @@ impl AnalysisService {
             .await?;
         info!("Received dependencies analysis: {}", dependencies_text);
 
-        // Parse dependencies into a vector
-        let dependencies: Vec<String> = dependencies_text
+        // Clean the dependencies response and parse into a vector
+        let cleaned_deps_text = clean_ai_response(&dependencies_text);
+        let dependencies: Vec<String> = cleaned_deps_text
             .lines()
             .filter(|line| line.trim().starts_with('-'))
             .map(|line| line.trim_start_matches('-').trim().to_string())
             .collect();
 
-        info!("No dependencies found in the file");
+        info!("Parsed {} dependencies from the file", dependencies.len());
 
         // Detect language from file extension
         let language = Path::new(file_path)
@@ -117,7 +156,7 @@ impl AnalysisService {
 
         let analysis = FileAnalysis {
             language,
-            file_purpose,
+            file_purpose: clean_ai_response(&file_purpose),
             dependencies,
             analysis_time: Utc::now().to_rfc3339(),
             contents: content.to_string(),

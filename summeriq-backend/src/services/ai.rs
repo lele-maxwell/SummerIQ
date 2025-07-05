@@ -41,7 +41,7 @@ impl AIService {
             .json(&json!({
                     "model": "deepseek-r1-distill-llama-70b",
                 "messages": [
-                        {"role": "system", "content": "You are a helpful AI assistant that analyzes code and provides clear, concise responses. IMPORTANT: Do not include any thinking process, internal monologue, or meta-commentary in your response. Do not start with '<think>' or similar markers. Provide direct, factual answers only."},
+                        {"role": "system", "content": "You are a helpful AI assistant that analyzes code and provides clear, concise responses. You are friendly and conversational, especially when users greet you or ask general questions. Always acknowledge greetings warmly and offer to help with their project. When users ask specific questions about code, provide detailed, factual answers. Focus on explaining code structure, architecture, best practices, and implementation details. If a user asks a vague question, politely ask for more specific details about what they'd like to know. CRITICAL: NEVER include any thinking process, internal monologue, reasoning steps, or meta-commentary in your response. NEVER start with '<think>', '<reasoning>', or any similar markers. NEVER explain your analysis process. NEVER think aloud or explain what you're going to do. NEVER start sentences with 'Alright,' 'Okay,' 'So,' 'First,' 'I need to,' 'I should,' 'Let me,' 'I'll,' 'I remember,' 'I also need,' 'Maybe I'll,' etc. NEVER mention guidelines, thinking processes, or internal reasoning. NEVER explain how you're going to respond. Provide ONLY direct, factual answers without any thinking aloud, process explanation, or meta-commentary."},
                         {"role": "user", "content": prompt}
                     ],
                     "temperature": 0.7,
@@ -99,9 +99,85 @@ impl AIService {
                     error!("Invalid response format from AI service");
                     AppError::InternalServerError("Invalid response from AI service".to_string())
                 })?;
+            
+            // Clean up the response to remove any thinking process markers
+            let cleaned_content = {
+                let mut lines: Vec<&str> = content.lines().collect();
+                
+                // Remove thinking process markers
+                lines.retain(|line| {
+                    let trimmed = line.trim();
+                    !trimmed.starts_with("<think>") &&
+                    !trimmed.starts_with("</think>") &&
+                    !trimmed.starts_with("<reasoning>") &&
+                    !trimmed.starts_with("</reasoning>") &&
+                    !trimmed.starts_with("<analysis>") &&
+                    !trimmed.starts_with("</analysis>")
+                });
+                
+                // Remove internal monologue patterns
+                lines.retain(|line| {
+                    let trimmed = line.trim();
+                    !trimmed.starts_with("Alright,") &&
+                    !trimmed.starts_with("Okay,") &&
+                    !trimmed.starts_with("So,") &&
+                    !trimmed.starts_with("First,") &&
+                    !trimmed.starts_with("I need to") &&
+                    !trimmed.starts_with("I should") &&
+                    !trimmed.starts_with("Let me") &&
+                    !trimmed.starts_with("I'll") &&
+                    !trimmed.starts_with("I think") &&
+                    !trimmed.starts_with("I should make sure") &&
+                    !trimmed.starts_with("It's important to") &&
+                    !trimmed.starts_with("Just a") &&
+                    !trimmed.starts_with("I remember") &&
+                    !trimmed.starts_with("I also need") &&
+                    !trimmed.starts_with("Maybe I'll") &&
+                    !trimmed.starts_with("I need to keep") &&
+                    !trimmed.starts_with("I should offer") &&
+                    !trimmed.starts_with("I also need to make") &&
+                    !trimmed.contains("I should respond") &&
+                    !trimmed.contains("I need to make sure") &&
+                    !trimmed.contains("I should acknowledge") &&
+                    !trimmed.contains("I should ask") &&
+                    !trimmed.contains("I'll keep it") &&
+                    !trimmed.contains("I should avoid") &&
+                    !trimmed.contains("Just a simple") &&
+                    !trimmed.contains("guidelines say") &&
+                    !trimmed.contains("thinking process") &&
+                    !trimmed.contains("internal monologue") &&
+                    !trimmed.contains("keep it straightforward") &&
+                    !trimmed.contains("concise and clear") &&
+                    !trimmed.contains("without any unnecessary") &&
+                    !trimmed.contains("give them an idea") &&
+                    !trimmed.contains("more tailored and helpful") &&
+                    !trimmed.is_empty()
+                });
+                
+                // Additional cleanup: remove any line that contains thinking patterns
+                lines.retain(|line| {
+                    let trimmed = line.trim().to_lowercase();
+                    !trimmed.contains("i remember") &&
+                    !trimmed.contains("guidelines say") &&
+                    !trimmed.contains("thinking process") &&
+                    !trimmed.contains("internal monologue") &&
+                    !trimmed.contains("keep it straightforward") &&
+                    !trimmed.contains("concise and clear") &&
+                    !trimmed.contains("without any unnecessary") &&
+                    !trimmed.contains("give them an idea") &&
+                    !trimmed.contains("more tailored and helpful") &&
+                    !trimmed.contains("i need to keep") &&
+                    !trimmed.contains("i should offer") &&
+                    !trimmed.contains("maybe i'll") &&
+                    !trimmed.contains("i also need to make")
+                });
+                
+                lines.join("\n").trim().to_string()
+            };
+            
             // Add a configurable delay after every successful AI call
             tokio::time::sleep(std::time::Duration::from_millis(self.post_request_delay_ms)).await;
-            return Ok(content.to_string());
+            return Ok(cleaned_content);
         }
     }
 } 

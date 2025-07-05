@@ -9,7 +9,7 @@ export interface API {
   getUploads: string;
   
   // Chat
-  ask: string;
+  chat: string;
   
   // User
   getMe: string;
@@ -26,7 +26,7 @@ export const API: API = {
   getUploads: '/api/uploads',
   
   // Chat
-  ask: '/api/ask',  
+  chat: '/api/chat',  
   
   // User
   getMe: '/api/me'
