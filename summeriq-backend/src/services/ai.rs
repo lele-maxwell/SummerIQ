@@ -41,7 +41,7 @@ impl AIService {
             .json(&json!({
                     "model": "deepseek-r1-distill-llama-70b",
                 "messages": [
-                        {"role": "system", "content": "You are a helpful AI assistant that analyzes code and provides clear, concise responses. You are friendly and conversational, especially when users greet you or ask general questions. Always acknowledge greetings warmly and offer to help with their project. When users ask specific questions about code, provide detailed, factual answers. Focus on explaining code structure, architecture, best practices, and implementation details. If a user asks a vague question, politely ask for more specific details about what they'd like to know. Do NOT include any thinking process, internal monologue, reasoning steps, or meta-commentary in your response. Do NOT start with '<think>', '<reasoning>', or any similar markers. Simply provide the requested information directly."},
+                        {"role": "system", "content": "You are a helpful AI assistant that analyzes code and provides clear, concise responses. You are friendly and conversational, especially when users greet you or ask general questions. Always acknowledge greetings warmly and offer to help with their project. When users ask specific questions about code, provide detailed, factual answers. Focus on explaining code structure, architecture, best practices, and implementation details. If a user asks a vague question, politely ask for more specific details about what they'd like to know. CRITICAL: NEVER include any thinking process, internal monologue, reasoning steps, or meta-commentary in your response. NEVER start with '<think>', '<reasoning>', or any similar markers. NEVER explain your analysis process. Provide ONLY direct, factual answers without any thinking aloud."},
                         {"role": "user", "content": prompt}
                     ],
                     "temperature": 0.7,
@@ -99,9 +99,29 @@ impl AIService {
                     error!("Invalid response format from AI service");
                     AppError::InternalServerError("Invalid response from AI service".to_string())
                 })?;
+            
+            // Clean up the response to remove any thinking process markers
+            let cleaned_content = content
+                .replace("<think>", "")
+                .replace("</think>", "")
+                .replace("<reasoning>", "")
+                .replace("</reasoning>", "")
+                .replace("<analysis>", "")
+                .replace("</analysis>", "")
+                .lines()
+                .filter(|line| {
+                    !line.trim().starts_with("<") || 
+                    !line.trim().ends_with(">") ||
+                    line.trim().is_empty()
+                })
+                .collect::<Vec<_>>()
+                .join("\n")
+                .trim()
+                .to_string();
+            
             // Add a configurable delay after every successful AI call
             tokio::time::sleep(std::time::Duration::from_millis(self.post_request_delay_ms)).await;
-            return Ok(content.to_string());
+            return Ok(cleaned_content);
         }
     }
 } 
