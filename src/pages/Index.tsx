@@ -35,6 +35,7 @@ const Index = ({ isAuthenticated, onLogin, onLogout }: IndexProps) => {
   const [selectedFilePath, setSelectedFilePath] = useState("");
   const [loginDialogOpen, setLoginDialogOpen] = useState(false);
   const [fileStructure, setFileStructure] = useState<FileNode | null>(null);
+  const [showUpload, setShowUpload] = useState(false);
   
   const handleLogin = () => {
     onLogin();
@@ -101,16 +102,41 @@ const Index = ({ isAuthenticated, onLogin, onLogout }: IndexProps) => {
       
       {!isAuthenticated ? (
         <div className="flex-grow flex flex-col items-center justify-center p-6">
-          <HeroSection onLoginClick={() => setLoginDialogOpen(true)} />
+          <HeroSection 
+            onLoginClick={() => setLoginDialogOpen(true)} 
+            isAuthenticated={false}
+            onUploadClick={() => {}}
+          />
         </div>
       ) : !hasUploadedFile ? (
-        <div className="container mx-auto py-12">
-          <h1 className="text-3xl font-bold text-center mb-2">Upload Your Project</h1>
-          <p className="text-muted-foreground text-center mb-8">
-            Upload a ZIP file containing your project to start analyzing it
-          </p>
-          <FileUpload onUploadComplete={handleUploadComplete} />
-        </div>
+        showUpload ? (
+          <div className="container mx-auto py-12">
+            <div className="flex justify-between items-center mb-8">
+              <div>
+                <h1 className="text-3xl font-bold text-center mb-2">Upload Your Project</h1>
+                <p className="text-muted-foreground text-center">
+                  Upload a ZIP file containing your project to start analyzing it
+                </p>
+              </div>
+              <Button 
+                variant="outline" 
+                onClick={() => setShowUpload(false)}
+                className="ml-4"
+              >
+                Back to Home
+              </Button>
+            </div>
+            <FileUpload onUploadComplete={handleUploadComplete} />
+          </div>
+        ) : (
+          <div className="flex-grow flex flex-col items-center justify-center p-6">
+            <HeroSection 
+              onLoginClick={() => setLoginDialogOpen(true)} 
+              isAuthenticated={true}
+              onUploadClick={() => setShowUpload(true)}
+            />
+          </div>
+        )
       ) : (
         <div className="flex-grow container mx-auto py-6">
           <div className="mb-6">
@@ -159,7 +185,15 @@ const Index = ({ isAuthenticated, onLogin, onLogout }: IndexProps) => {
   );
 };
 
-const HeroSection = ({ onLoginClick }: { onLoginClick: () => void }) => {
+const HeroSection = ({ 
+  onLoginClick, 
+  isAuthenticated, 
+  onUploadClick 
+}: { 
+  onLoginClick: () => void; 
+  isAuthenticated: boolean; 
+  onUploadClick: () => void;
+}) => {
   return (
     <>
       <motion.div 
@@ -201,10 +235,21 @@ const HeroSection = ({ onLoginClick }: { onLoginClick: () => void }) => {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.5, duration: 0.5 }}
         >
-          <Button size="lg" className="text-base bg-zipmind-500 hover:bg-zipmind-600" onClick={onLoginClick}>
-            Get Started
-          </Button>
-          <Button size="lg" variant="outline" className="text-base">Learn More</Button>
+          {!isAuthenticated ? (
+            <>
+              <Button size="lg" className="text-base bg-zipmind-500 hover:bg-zipmind-600" onClick={onLoginClick}>
+                Get Started
+              </Button>
+              <Button size="lg" variant="outline" className="text-base">Learn More</Button>
+            </>
+          ) : (
+            <>
+              <Button size="lg" className="text-base bg-zipmind-500 hover:bg-zipmind-600" onClick={onUploadClick}>
+                Upload Project
+              </Button>
+              <Button size="lg" variant="outline" className="text-base">Learn More</Button>
+            </>
+          )}
         </motion.div>
       </motion.div>
       
