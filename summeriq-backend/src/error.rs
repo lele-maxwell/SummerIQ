@@ -19,6 +19,9 @@ pub enum AppError {
 
     #[error("Upload Error: {0}")]
     UploadError(String),
+
+    #[error("Not Found: {0}")]
+    NotFound(String),
 }
 
 impl ResponseError for AppError {
@@ -35,6 +38,9 @@ impl ResponseError for AppError {
             }
             AppError::UploadError(ref message) => {
                 HttpResponse::BadRequest().json(serde_json::json!({ "error": message }))
+            }
+            AppError::NotFound(ref message) => {
+                HttpResponse::NotFound().json(serde_json::json!({ "error": message }))
             }
         }
     }
