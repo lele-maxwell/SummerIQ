@@ -69,6 +69,9 @@ export function AIAnalysis({ filePath, fileName }: AIAnalysisProps) {
       });
       
       if (!response.ok) {
+        if (response.status === 404) {
+          throw new Error('File not found in the uploaded project. Please check your ZIP structure.');
+        }
         const errorData = await response.json().catch(() => null);
         const errorMessage = errorData?.message || `Failed to fetch analysis: ${response.status} ${response.statusText}`;
         throw new Error(errorMessage);
@@ -92,6 +95,14 @@ export function AIAnalysis({ filePath, fileName }: AIAnalysisProps) {
         <p className="text-muted-foreground">
           Choose a file from the explorer to see AI-powered insights.
         </p>
+      </div>
+    );
+  }
+
+  if (analysisError) {
+    return (
+      <div className="p-4 text-red-500 bg-red-50 rounded">
+        <strong>Error:</strong> {analysisError}
       </div>
     );
   }

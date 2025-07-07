@@ -44,6 +44,9 @@ impl StorageService {
     pub async fn read_file(&self, filename: &str) -> Result<Vec<u8>, crate::error::AppError> {
         let file_path = self.upload_dir.join(filename);
         info!("Attempting to read file from absolute path: {:?}", file_path);
+        if !file_path.exists() {
+            return Err(crate::error::AppError::NotFound(format!("File not found: {}", file_path.display())));
+        }
         let content = fs::read(&file_path).await?;
         info!("Successfully read file from: {:?}", file_path);
         Ok(content)
