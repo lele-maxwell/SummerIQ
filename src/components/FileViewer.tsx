@@ -12,7 +12,7 @@ const FileViewer: React.FC<{ path: string }> = ({ path }) => {
       setIsLoading(true);
       setError(null);
       try {
-        const response = await fetch(`/api/files/content/${path}`);
+        const response = await fetch(`https://summeriq-production.up.railway.app/api/files/content/${path}`);
         if (!response.ok) {
           throw new Error('Failed to fetch file content');
         }
@@ -20,7 +20,7 @@ const FileViewer: React.FC<{ path: string }> = ({ path }) => {
         setFileContent(data.content);
         
         // Fetch AI analysis
-        const analysisResponse = await fetch(`/api/analysis/${path}`);
+        const analysisResponse = await fetch(`https://summeriq-production.up.railway.app/api/analysis/${path}`);
         if (analysisResponse.ok) {
           const analysisData = await analysisResponse.json();
           setAnalysis(analysisData);
