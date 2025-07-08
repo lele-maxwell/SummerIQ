@@ -112,7 +112,7 @@ async fn main() -> std::io::Result<()> {
                     .configure(documentation::configure)
             )
     })
-    .bind(("127.0.0.1", config.server_port))?
+    .bind(("0.0.0.0", config.server_port))?
     .run()
     .await
 }
