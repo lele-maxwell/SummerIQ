@@ -20,7 +20,6 @@ RUN apt-get update && apt-get install -y libssl1.1 ca-certificates && rm -rf /va
 
 # Copy built binary from builder
 COPY --from=builder /app/target/release/summeriq-backend /app/summeriq-backend
-COPY .env ./
 COPY migrations ./migrations
 COPY storage ./storage
 
