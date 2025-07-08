@@ -60,7 +60,7 @@ const Index = ({ isAuthenticated, onLogin, onLogout }: IndexProps) => {
     const cleanFileName = response.filename.split('_').slice(1).join('_').replace('.zip', '');
     console.log('Clean file name:', cleanFileName);
     setUploadedFileName(cleanFileName);
-
+    
     // Use the backend's FileNode tree directly
     const fileNodes = response.upload?.extracted_files || response.extracted_files;
     if (fileNodes && Array.isArray(fileNodes)) {
@@ -72,7 +72,7 @@ const Index = ({ isAuthenticated, onLogin, onLogout }: IndexProps) => {
         children: fileNodes as any // FileNode[]
       };
       setFileStructure(root);
-      localStorage.setItem('uploadedFileName', cleanFileName);
+        localStorage.setItem('uploadedFileName', cleanFileName);
       localStorage.setItem('fileStructure', JSON.stringify(root));
       console.log('File structure created:', JSON.stringify(root, null, 2));
       navigate('/dashboard', { replace: true });
@@ -110,13 +110,13 @@ const Index = ({ isAuthenticated, onLogin, onLogout }: IndexProps) => {
         </div>
       ) : !hasUploadedFile ? (
         showUpload ? (
-          <div className="container mx-auto py-12">
+        <div className="container mx-auto py-12">
             <div className="flex justify-between items-center mb-8">
               <div>
-                <h1 className="text-3xl font-bold text-center mb-2">Upload Your Project</h1>
+          <h1 className="text-3xl font-bold text-center mb-2">Upload Your Project</h1>
                 <p className="text-muted-foreground text-center">
-                  Upload a ZIP file containing your project to start analyzing it
-                </p>
+            Upload a ZIP file containing your project to start analyzing it
+          </p>
               </div>
               <Button 
                 variant="outline" 
@@ -126,8 +126,8 @@ const Index = ({ isAuthenticated, onLogin, onLogout }: IndexProps) => {
                 Back to Home
               </Button>
             </div>
-            <FileUpload onUploadComplete={handleUploadComplete} />
-          </div>
+          <FileUpload onUploadComplete={handleUploadComplete} />
+        </div>
         ) : (
           <div className="flex-grow flex flex-col items-center justify-center p-6">
             <HeroSection 
@@ -247,7 +247,7 @@ const HeroSection = ({
               <Button size="lg" className="text-base bg-zipmind-500 hover:bg-zipmind-600" onClick={onUploadClick}>
                 Upload Project
               </Button>
-              <Button size="lg" variant="outline" className="text-base">Learn More</Button>
+          <Button size="lg" variant="outline" className="text-base">Learn More</Button>
             </>
           )}
         </motion.div>
@@ -265,7 +265,7 @@ const HeroSection = ({
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.7, duration: 0.5 }}
           >
-            <FeatureCard
+          <FeatureCard
               icon={<BookOpenIcon className="h-8 w-8 text-zipmind-400" />}
               title="Project Understanding"
               description="Learn how different parts of a project connect and work together through AI-generated documentation."
@@ -276,7 +276,7 @@ const HeroSection = ({
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.8, duration: 0.5 }}
           >
-            <FeatureCard
+          <FeatureCard
               icon={<GraduationCapIcon className="h-8 w-8 text-zipmind-400" />}
               title="Learning Platform"
               description="Discover modern technologies and best practices used in real-world projects through interactive learning."
@@ -287,7 +287,7 @@ const HeroSection = ({
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.9, duration: 0.5 }}
           >
-            <FeatureCard
+          <FeatureCard
               icon={<CodeIcon className="h-8 w-8 text-zipmind-400" />}
               title="Contribute Confidently"
               description="Understand where and how to add your code with AI-powered guidance and best practice suggestions."

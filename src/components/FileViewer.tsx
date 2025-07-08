@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { API } from '@/types/api';
 
 const FileViewer: React.FC<{ path: string }> = ({ path }) => {
   const [fileContent, setFileContent] = useState<string>('');
@@ -12,7 +13,7 @@ const FileViewer: React.FC<{ path: string }> = ({ path }) => {
       setIsLoading(true);
       setError(null);
       try {
-        const response = await fetch(`/api/files/content/${path}`);
+        const response = await fetch(`${API.baseUrl}/api/files/content/${path}`);
         if (!response.ok) {
           throw new Error('Failed to fetch file content');
         }
@@ -20,7 +21,7 @@ const FileViewer: React.FC<{ path: string }> = ({ path }) => {
         setFileContent(data.content);
         
         // Fetch AI analysis
-        const analysisResponse = await fetch(`/api/analysis/${path}`);
+        const analysisResponse = await fetch(`${API.baseUrl}/api/analysis/${path}`);
         if (analysisResponse.ok) {
           const analysisData = await analysisResponse.json();
           setAnalysis(analysisData);

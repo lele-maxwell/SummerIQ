@@ -16,7 +16,7 @@ export interface API {
 }
 
 export const API: API = {
-  baseUrl: 'http://127.0.0.1:8080',
+  baseUrl: import.meta.env.VITE_API_BASE_URL || 'https://summeriq-production.up.railway.app',
   // Auth
   register: '/api/auth/register',
   login: '/api/auth/login',
