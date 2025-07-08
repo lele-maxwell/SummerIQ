@@ -100,17 +100,27 @@ async fn main() -> std::io::Result<()> {
                     .service(
                         web::scope("/upload")
                             .route("", web::post().to(handlers::upload::upload_file))
+                            .route("", web::method(actix_web::http::Method::OPTIONS).to(|| async { actix_web::HttpResponse::Ok() }))
                             .route("/{file_id}", web::get().to(upload::get_file))
                             .route("/content/{path:.*}", web::get().to(upload::get_file_content))
                     )
                     .service(
                         web::scope("/analysis")
                             .route("/file/{path:.*}", web::get().to(routes::analysis::analyze_file))
+                            .route("/file/{path:.*}", web::method(actix_web::http::Method::OPTIONS).to(|| async { actix_web::HttpResponse::Ok() }))
                     )
                     .service(
                         web::scope("/chat")
                             .route("", web::post().to(chat::chat))
+                            .route("", web::method(actix_web::http::Method::OPTIONS).to(|| async { actix_web::HttpResponse::Ok() }))
                     )
+                    .configure(|cfg| {
+                        cfg.service(
+                            web::resource("/documentation/project/{path:.*}")
+                                .route(web::get().to(handlers::documentation::get_project_documentation))
+                                .route(web::method(actix_web::http::Method::OPTIONS).to(|| async { actix_web::HttpResponse::Ok() }))
+                        );
+                    })
                     .configure(documentation::configure)
             )
     })
