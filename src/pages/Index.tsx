@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Header } from "@/components/layout/Header";
 import { AuthForm } from "@/components/auth/AuthForm";
 import { FileUpload } from "@/components/upload/FileUpload";
@@ -96,6 +96,10 @@ const Index = ({ isAuthenticated, onLogin, onLogout }: IndexProps) => {
 
       <Dialog open={loginDialogOpen} onOpenChange={setLoginDialogOpen}>
         <DialogContent className="sm:max-w-md">
+          <DialogTitle>Sign In</DialogTitle>
+          <DialogDescription>
+            Enter your credentials to access your account.
+          </DialogDescription>
           <AuthForm onSuccess={handleLogin} />
         </DialogContent>
       </Dialog>
