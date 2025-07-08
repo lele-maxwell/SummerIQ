@@ -93,9 +93,7 @@ async fn main() -> std::io::Result<()> {
                     .service(
                         web::scope("/auth")
                             .route("/register", web::post().to(handlers::auth::register))
-                            .route("/register", web::method(actix_web::http::Method::OPTIONS).to(|| async { actix_web::HttpResponse::Ok() }))
                             .route("/login", web::post().to(handlers::auth::login))
-                            .route("/login", web::method(actix_web::http::Method::OPTIONS).to(|| async { actix_web::HttpResponse::Ok() }))
                     )
                     .service(
                         web::scope("/upload")
