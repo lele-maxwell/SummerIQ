@@ -1,7 +1,5 @@
 [build]
-# This tells Railway to use Cargo (Rust) as the builder
-builder = "CARGO"
+command = "cargo build --release"
 
-[deploy]
-# This tells Railway the command to run your Rust server
-start = "cargo run --release"
+[start]
+command = "cargo run --release"
