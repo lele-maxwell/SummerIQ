@@ -97,10 +97,10 @@ pub async fn upload_file(
         RETURNING id, user_id, filename, original_filename, mime_type, size, extracted_files as "extracted_files: Json<Value>", created_at, updated_at
         "#,
         user_id,
-        final_filename,
+        final_filename, 
         filename,
         mime_type,
-        file_content.len() as i64,
+        file_content.len() as i64, 
         extracted_files_json.map(|v| v.0)
     )
     .fetch_one(&auth_service.pool)
