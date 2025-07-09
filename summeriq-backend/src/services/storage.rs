@@ -97,11 +97,11 @@ impl StorageService {
         fs::create_dir_all(&extract_dir).await?;
         
         let mut extracted_files = Vec::new();
-        
+
         for i in 0..archive.len() {
             let mut file = archive.by_index(i)?;
             let outpath = extract_dir.join(file.name());
-            
+
             if file.name().ends_with('/') {
                 // Create directory
                 fs::create_dir_all(&outpath).await?;
@@ -117,7 +117,7 @@ impl StorageService {
             
             extracted_files.push(file.name().to_string());
         }
-        
+
         info!("ZIP file extracted to: {:?}", extract_dir);
         Ok(extracted_files)
     }
