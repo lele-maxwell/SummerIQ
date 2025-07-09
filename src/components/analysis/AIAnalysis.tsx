@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, Tabs, TabsList, TabsTrigger, TabsContent, ScrollArea, Skeleton, Badge, Button, SyntaxHighlighter } from '@/components/ui';
 import { FileTextIcon, CodeIcon, BrainCogIcon, BoxesIcon, AlertCircleIcon, RefreshCwIcon } from 'lucide-react';
 import { vscDarkPlus } from '@/lib/prism-themes';
+import { API } from '../../types/api';
 
 interface FileAnalysis {
   language: string;
@@ -36,7 +37,7 @@ export function AIAnalysis({ filePath, fileName }: AIAnalysisProps) {
     
     setContentLoading(true);
     try {
-      const response = await fetch(`https://summeriq-production.up.railway.app/api/upload/content/${encodeURIComponent(filePath)}`, {
+      const response = await fetch(`${API.baseUrl}/api/upload/content/${encodeURIComponent(filePath)}`, {
         headers: {
           'Accept': 'text/plain',
         },
@@ -62,7 +63,7 @@ export function AIAnalysis({ filePath, fileName }: AIAnalysisProps) {
     setAnalysisLoading(true);
     setAnalysisError(null);
     try {
-      const response = await fetch(`https://summeriq-production.up.railway.app/api/analysis/file/${encodeURIComponent(filePath)}`, {
+      const response = await fetch(`${API.baseUrl}/api/analysis/file/${encodeURIComponent(filePath)}`, {
         headers: {
           'Accept': 'application/json',
         },
