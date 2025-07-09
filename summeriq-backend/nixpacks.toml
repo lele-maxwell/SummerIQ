@@ -1,2 +1,4 @@
+providers = ["rust"]
+
 [phases.setup]
 nixPkgs = ["openssl", "pkg-config"] 
