@@ -27,9 +27,14 @@ WORKDIR /app
 # Install runtime dependencies
 RUN apt-get update && apt-get install -y libssl1.1 ca-certificates && rm -rf /var/lib/apt/lists/*
 
+
+# Copy built binary from builder
+COPY --from=builder /app/target/release/summeriq-backend /app/summeriq-backend
+COPY migrations ./migrations
+
 # Copy built binary from builder (prefer static, fallback to dynamic)
 COPY --from=builder /app/target/x86_64-unknown-linux-musl/release/summeriq-backend /app/summeriq-backend 2>/dev/null || \
-    cp /app/target/release/summeriq-backend /app/summeriq-backend
+
 COPY storage ./storage
 
 EXPOSE 8080

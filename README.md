@@ -5,7 +5,7 @@ SummerIQ is a project aimed at providing intelligent analysis and insights.
 ## Project Structure
 
 The project consists of two main parts:
-
+ 
 1.  **Frontend**: Built with React, TypeScript, Vite, shadcn-ui, and Tailwind CSS.
 2.  **Backend**: A Rust application using axum, sqlx, and PostgreSQL for data storage.
 

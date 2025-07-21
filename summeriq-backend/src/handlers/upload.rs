@@ -95,7 +95,7 @@ pub async fn upload_file(
         INSERT INTO uploads (user_id, filename, original_filename, mime_type, size, extracted_files)
         VALUES ($1, $2, $3, $4, $5, $6)
         RETURNING id, user_id, filename, original_filename, mime_type, size, extracted_files as "extracted_files: Json<Value>", created_at, updated_at
-        "#,
+        "#, 
         user_id,
         final_filename, 
         filename,
