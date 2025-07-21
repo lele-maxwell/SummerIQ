@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, Tabs, TabsList, TabsTrigger, TabsContent, ScrollArea, Skeleton, Badge, Button, SyntaxHighlighter } from '@/components/ui';
 import { FileTextIcon, CodeIcon, BrainCogIcon, BoxesIcon, AlertCircleIcon, RefreshCwIcon } from 'lucide-react';
 import { vscDarkPlus } from '@/lib/prism-themes';
+import { API } from '../../types/api';
 
 interface FileAnalysis {
   language: string;
@@ -63,6 +64,7 @@ export function AIAnalysis({ filePath, fileName }: AIAnalysisProps) {
     setAnalysisError(null);
     try {
       const response = await fetch(`http://localhost:8000/api/analysis/file/${encodeURIComponent(filePath)}`, {
+
         headers: {
           'Accept': 'application/json',
         },
