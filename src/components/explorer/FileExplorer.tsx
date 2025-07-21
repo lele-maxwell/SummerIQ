@@ -25,6 +25,10 @@ export const FileExplorer = ({ fileStructure, onFileSelect }: FileExplorerProps)
   }, [fileStructure]);
   
   const handleNodeSelect = (node: FileNode) => {
+    if (node.is_dir) {
+      return;
+    }
+
     // Find the path by traversing the tree
     const findPath = (nodes: FileNode[], targetName: string, currentPath: string): string | null => {
       for (const node of nodes) {

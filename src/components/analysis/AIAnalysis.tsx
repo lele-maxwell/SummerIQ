@@ -36,7 +36,7 @@ export function AIAnalysis({ filePath, fileName }: AIAnalysisProps) {
     
     setContentLoading(true);
     try {
-      const response = await fetch(`https://summeriq-production.up.railway.app/api/upload/content/${encodeURIComponent(filePath)}`, {
+      const response = await fetch(`http://localhost:8000/api/upload/content/${encodeURIComponent(filePath)}`, {
         headers: {
           'Accept': 'text/plain',
         },
@@ -62,7 +62,7 @@ export function AIAnalysis({ filePath, fileName }: AIAnalysisProps) {
     setAnalysisLoading(true);
     setAnalysisError(null);
     try {
-      const response = await fetch(`https://summeriq-production.up.railway.app/api/analysis/file/${encodeURIComponent(filePath)}`, {
+      const response = await fetch(`http://localhost:8000/api/analysis/file/${encodeURIComponent(filePath)}`, {
         headers: {
           'Accept': 'application/json',
         },

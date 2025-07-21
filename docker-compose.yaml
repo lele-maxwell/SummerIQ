@@ -1,0 +1,47 @@
+services:
+  db:
+    image: postgres:latest
+    environment:
+      POSTGRES_DB: summeriq_db
+      POSTGRES_USER: summeriq_user
+      POSTGRES_PASSWORD: summeriq_pass
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  backend:
+    image: rust:latest
+    working_dir: /app
+    volumes:
+      - ./summeriq-backend:/app
+    environment:
+      DATABASE_URL: postgres://summeriq_user:summeriq_pass@db:5432/summeriq_db
+      JWT_SECRET: supersecretjwtkey
+      GROQ_API_KEY: your_groq_api_key
+      SERVER_PORT: 8000
+      POST_REQUEST_DELAY_MS: 3000
+    depends_on:
+      - db
+    command: >
+      bash -c "cargo install sqlx-cli --no-default-features --features native-tls,postgres &&
+               sqlx migrate run &&
+               cargo run"
+    ports:
+      - "8000:8000"
+
+  frontend:
+    image: node:20
+    working_dir: /app
+    volumes:
+      - .:/app
+    depends_on:
+      - backend
+    environment:
+      VITE_API_BASE_URL: http://localhost:8000
+    command: bash -c "npm install && npm run dev -- --host"
+    ports:
+      - "3000:3000"
+
+volumes:
+  db_data:
