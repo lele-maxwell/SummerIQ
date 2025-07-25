@@ -3,8 +3,16 @@ import { API } from '@/types/api';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 
-function getLanguageFromExtension(path: string): string {
-  const ext = path.split('.').pop()?.toLowerCase();
+function getLanguageFromPath(path: string): string {
+  const filename = path.split('/').pop()?.toLowerCase() || '';
+  // Special filenames
+  if (filename === 'dockerfile') return 'docker';
+  if (filename === '.gitignore') return 'gitignore';
+  if (filename === '.env') return 'ini';
+  if (filename === 'makefile') return 'makefile';
+  if (filename === 'readme' || filename === 'readme.md') return 'markdown';
+  // Extension-based
+  const ext = filename.split('.').pop();
   switch (ext) {
     case 'js': return 'javascript';
     case 'ts': return 'typescript';
@@ -82,7 +90,7 @@ const FileViewer: React.FC<{ path: string }> = ({ path }) => {
     <div className="flex flex-col h-full">
       <div className="flex-1 overflow-auto p-4">
         <SyntaxHighlighter
-          language={getLanguageFromExtension(path)}
+          language={getLanguageFromPath(path)}
           style={vscDarkPlus}
           showLineNumbers
           wrapLines
