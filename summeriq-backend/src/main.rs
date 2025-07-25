@@ -67,13 +67,14 @@ async fn main() -> std::io::Result<()> {
     let config_clone = config.clone();
     HttpServer::new(move || {
         let cors = Cors::default()
-            .allowed_origin("https://summer-iq.vercel.app")
-            .allowed_origin_fn(|origin, _req_head| {
+           //.allowed_origin("https://summer-iq.vercel.app")
+            //.allowed_origin_fn(|origin, _req_head| {
                 // Allow all vercel.app preview deployments
-                origin.as_bytes().ends_with(b".vercel.app")
-            })
-            .allowed_origin("http://localhost:3000")
-            .allowed_origin("http://127.0.0.1:3000")
+              //  origin.as_bytes().ends_with(b".vercel.app")
+           // })
+           .allowed_origin("http://localhost:3000")
+           .allowed_origin("http://localhost:3003")
+            .allowed_origin("http://127.0.0.1:3003")
             .allowed_methods(vec!["GET", "POST", "PUT", "DELETE", "OPTIONS"])
             .allowed_headers(vec!["Content-Type", "Authorization"])
             .supports_credentials()

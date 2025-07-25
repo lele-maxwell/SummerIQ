@@ -1,5 +1,39 @@
 import React, { useState, useEffect } from 'react';
 import { API } from '@/types/api';
+import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
+import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
+
+function getLanguageFromExtension(path: string): string {
+  const ext = path.split('.').pop()?.toLowerCase();
+  switch (ext) {
+    case 'js': return 'javascript';
+    case 'ts': return 'typescript';
+    case 'tsx': return 'tsx';
+    case 'jsx': return 'jsx';
+    case 'json': return 'json';
+    case 'py': return 'python';
+    case 'rs': return 'rust';
+    case 'java': return 'java';
+    case 'c': return 'c';
+    case 'cpp': return 'cpp';
+    case 'cs': return 'csharp';
+    case 'go': return 'go';
+    case 'html': return 'html';
+    case 'css': return 'css';
+    case 'scss': return 'scss';
+    case 'md': return 'markdown';
+    case 'sh': return 'bash';
+    case 'yml':
+    case 'yaml': return 'yaml';
+    case 'xml': return 'xml';
+    case 'php': return 'php';
+    case 'swift': return 'swift';
+    case 'kt': return 'kotlin';
+    case 'sql': return 'sql';
+    case 'txt': return 'text';
+    default: return 'text';
+  }
+}
 
 const FileViewer: React.FC<{ path: string }> = ({ path }) => {
   const [fileContent, setFileContent] = useState<string>('');
@@ -47,7 +81,14 @@ const FileViewer: React.FC<{ path: string }> = ({ path }) => {
   return (
     <div className="flex flex-col h-full">
       <div className="flex-1 overflow-auto p-4">
-        <pre className="whitespace-pre-wrap font-mono text-sm">{fileContent}</pre>
+        <SyntaxHighlighter
+          language={getLanguageFromExtension(path)}
+          style={vscDarkPlus}
+          showLineNumbers
+          wrapLines
+        >
+          {fileContent}
+        </SyntaxHighlighter>
       </div>
       {analysis && (
         <div className="border-t border-gray-200 p-4 bg-gray-50">

@@ -26,7 +26,7 @@ impl Config {
             storage_path: storage_path.clone(),
             groq_api_key: env::var("GROQ_API_KEY").expect("GROQ_API_KEY must be set"),
             server_port: env::var("SERVER_PORT")
-                .unwrap_or_else(|_| "8080".to_string())
+                .unwrap_or_else(|_| "8000".to_string())
                 .parse()
                 .expect("SERVER_PORT must be a number"),
             upload_dir: storage_path,
